@@ -21,9 +21,11 @@ def make_post(**overrides) -> Post:
 
 
 class FakeStore:
-    def __init__(self, due=(), recent=()):
+    def __init__(self, due=(), recent=(), fail_mark_posted=False):
         self.due = list(due)
         self.recent = list(recent)
+        self.fail_mark_posted = fail_mark_posted
+        self.posting = []
         self.posted, self.failed, self.failures, self.metrics, self.collected = [], [], [], [], []
 
     def approved_threads_due(self, now):
@@ -32,7 +34,12 @@ class FakeStore:
     def posted_threads_since(self, since):
         return [p for p in self.recent if p.posted_at and p.posted_at >= since]
 
+    def mark_posting(self, post):
+        self.posting.append(post.content_id)
+
     def mark_posted(self, post, media_id, reply_id, at):
+        if self.fail_mark_posted:
+            raise RuntimeError("notion down")
         self.posted.append((post.content_id, media_id, reply_id))
 
     def mark_failed(self, post, error):

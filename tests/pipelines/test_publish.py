@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 
+import httpx
 import pytest
 
 from channels.threads.client import ThreadsError
@@ -97,3 +98,52 @@ def test_no_quota_stops():
     store, client = FakeStore(due=[make_post()]), FakeClient(quota=0)
     assert run(store, client) == []
     assert client.calls == []
+
+
+def test_dry_run_blocking_post_is_not_marked_failed():
+    store, client = FakeStore(due=[make_post(link="https://x", disclosure="")]), FakeClient()
+    assert run(store, client, dry_run=True) == []
+    assert store.failed == [] and client.calls == []
+
+
+def test_marks_posting_before_post():
+    store, client = FakeStore(due=[make_post()]), FakeClient()
+    assert run(store, client) == ["TH-LIVING-20261101-001"]
+    assert store.posting == ["TH-LIVING-20261101-001"]
+    assert store.posted == [("TH-LIVING-20261101-001", "m1", None)]
+
+
+def test_mark_posted_failure_stops_run():
+    store, client = FakeStore(due=[make_post()], fail_mark_posted=True), FakeClient()
+    with pytest.raises(RuntimeError):
+        run(store, client)
+    assert store.posting == ["TH-LIVING-20261101-001"]
+    assert len(client.calls) == 1
+
+
+def test_network_error_fails_without_retry():
+    class NetworkDown(FakeClient):
+        def post_text(self, text, reply_to=None):
+            self.calls.append((text, reply_to))
+            raise httpx.ConnectError("boom")
+
+    store, client = FakeStore(due=[make_post()]), NetworkDown()
+    assert run(store, client) == []
+    assert len(client.calls) == 1
+    assert "network" in store.failed[0][1]
+    assert store.failures[0][2] == "network"
+
+
+def test_reply_token_expired_marks_posted_then_raises():
+    store, client = FakeStore(due=[make_post(**LINK)]), FakeClient()
+    original = client.post_text
+
+    def expired(text, reply_to=None):
+        if reply_to:
+            raise ThreadsError("190", "expired")
+        return original(text, reply_to)
+
+    client.post_text = expired
+    with pytest.raises(ThreadsError):
+        run(store, client)
+    assert store.posted == [("TH-LIVING-20261101-001", "m1", None)]

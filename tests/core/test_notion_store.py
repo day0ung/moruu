@@ -67,6 +67,14 @@ def test_mark_posted_sets_status_ids_time():
     assert props["게시시각"] == {"date": {"start": NOW.isoformat()}}
 
 
+def test_mark_posting_sets_status_posting():
+    store, sent = make_store([{}])
+    store.mark_posting(post())
+    method, path, body, _ = sent[0]
+    assert (method, path) == ("PATCH", "/v1/pages/page-1")
+    assert body["properties"] == {"status": {"select": {"name": "POSTING"}}}
+
+
 def test_add_metrics_creates_row_in_metrics_db():
     store, sent = make_store([{}])
     store.add_metrics(post(), 24, 30.5, {"views": 120, "likes": 4, "unknown": 9}, NOW)
