@@ -1,0 +1,49 @@
+name: threads
+
+on:
+  schedule:
+    - cron: "0 23 * * *"   # KST 08:00
+    - cron: "0 11 * * *"   # KST 20:00
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "publish / collect / all"
+        default: all
+        type: choice
+        options: [all, publish, collect]
+      dry_run:
+        description: "게시하지 않고 대상만 확인"
+        default: false
+        type: boolean
+
+concurrency:
+  group: threads
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run pytest -q
+      - name: threads_post
+        env:
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_TOKEN_ISSUED: ${{ secrets.THREADS_TOKEN_ISSUED }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_CONTENT: ${{ secrets.NOTION_DB_CONTENT }}
+          NOTION_DB_METRICS: ${{ secrets.NOTION_DB_METRICS }}
+          NOTION_DB_FAILURES: ${{ secrets.NOTION_DB_FAILURES }}
+          MORUU_DAILY_CAP: "3"
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          ARGS="--only ${{ inputs.only || 'all' }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          uv run python -m pipelines.threads_post $ARGS
