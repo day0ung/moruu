@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 from dotenv import load_dotenv
 
 from channels.threads.client import TOKEN_EXPIRED, ThreadsClient, ThreadsError
@@ -37,11 +38,27 @@ def main(argv: list[str] | None = None) -> int:
     now = datetime.now(KST)
 
     token = s.threads_token
+    exit_code = 0
     if not args.dry_run and needs_refresh(s.threads_token_issued, now.date()):
-        token, _ = ThreadsClient(s.threads_user_id, token).refresh_token()
-        persist_token(token, now.date(), env_path=ROOT / ".env", environ=os.environ)
-        log = setup_logging([token, s.threads_token, s.notion_token])
-        log.info("Threads 토큰 갱신 완료")
+        try:
+            new_token, _ = ThreadsClient(s.threads_user_id, token).refresh_token()
+        except ThreadsError as e:
+            if e.code == TOKEN_EXPIRED:
+                log.error("Threads 토큰 만료 — uv run python -m channels.threads.get_token 으로 재발급 필요")
+                return 2
+            log.warning("Threads 토큰 갱신 실패 — 기존 토큰으로 계속")
+        except httpx.HTTPError:
+            log.warning("Threads 토큰 갱신 실패 — 기존 토큰으로 계속")
+        else:
+            token = new_token
+            log = setup_logging([token, s.threads_token, s.notion_token])
+            try:
+                persist_token(token, now.date(), env_path=ROOT / ".env", environ=os.environ)
+            except Exception:
+                log.error("새 Threads 토큰 저장 실패 — GH_PAT 또는 .env 확인 필요")
+                exit_code = 3
+            else:
+                log.info("Threads 토큰 갱신 완료")
 
     client = ThreadsClient(s.threads_user_id, token)
     store = NotionStore(s.notion_token, DbIds(s.notion_db_content, s.notion_db_metrics, s.notion_db_failures))
@@ -54,8 +71,9 @@ def main(argv: list[str] | None = None) -> int:
         if e.code == TOKEN_EXPIRED:
             log.error("Threads 토큰 만료 — uv run python -m channels.threads.get_token 으로 재발급 필요")
             return 2
-        raise
-    return 0
+        log.error("Threads API 오류: %s", e)
+        return 1
+    return exit_code
 
 
 if __name__ == "__main__":

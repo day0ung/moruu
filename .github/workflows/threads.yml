@@ -43,7 +43,9 @@ jobs:
           NOTION_DB_FAILURES: ${{ secrets.NOTION_DB_FAILURES }}
           MORUU_DAILY_CAP: "3"
           GH_PAT: ${{ secrets.GH_PAT }}
+          INPUT_ONLY: ${{ inputs.only || 'all' }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          ARGS="--only ${{ inputs.only || 'all' }}"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          ARGS="--only $INPUT_ONLY"
+          if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           uv run python -m pipelines.threads_post $ARGS
