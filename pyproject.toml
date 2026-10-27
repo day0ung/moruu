@@ -1,0 +1,16 @@
+[project]
+name = "moruu"
+version = "0.1.0"
+description = "쇼핑 콘텐츠 반자동화 (Threads · 쿠팡 · YouTube)"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
