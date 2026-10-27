@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest)",
+      "Bash(uv run pytest -q)",
+      "Bash(uv run pytest -v)",
+      "Bash(uv run python -m pipelines.threads_post --dry-run)",
+      "Bash(uv --version)",
+      "mcp__notion__notion-fetch",
+      "mcp__notion__notion-search",
+      "mcp__notion__notion-get-self",
+      "mcp__notion__notion-query-data-sources"
+    ]
+  }
+}
