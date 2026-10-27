@@ -1356,6 +1356,251 @@ git commit -m "feat(threads): API 클라이언트와 장기 토큰 갱신"
 
 ---
 
+### Task 6b: 토큰 최초 발급을 Python으로 (`get_token.ps1` 대체, Mac 지원)
+
+**Files:**
+- Create: `channels/threads/get_token.py`
+- Modify: `channels/threads/token.py` (`update_env_file` 에 `remove` 인자 추가)
+- Delete: `channels/threads/scripts/get_token.ps1` (폴더가 비면 폴더도)
+- Modify: `CLAUDE.md` (명령 목록에 토큰 발급 추가)
+- Test: `tests/channels/test_get_token.py`, `tests/channels/test_threads_token.py` (테스트 1개 추가)
+
+**Interfaces:**
+- Consumes: `channels.threads.client.BASE`, `ThreadsError`, `channels.threads.token.update_env_file`
+- Produces:
+  - `update_env_file(path: Path, updates: dict[str, str], remove: Iterable[str] = ()) -> None`
+  - `REDIRECT_URI = "https://threads-auth.netlify.app/"`
+  - `clean_code(code: str) -> str` (끝의 `#_` 제거, 공백 제거)
+  - `@dataclass(frozen=True) Issued(token: str, expires_in: int, user_id: str, username: str)`
+  - `exchange_code(http: httpx.Client, app_id: str, app_secret: str, code: str) -> Issued`
+  - `main() -> int` — 실행: `uv run python -m channels.threads.get_token`
+
+흐름 (기존 `get_token.ps1` 과 동일):
+1. 루트 `.env` 읽기 (`dotenv_values`). `THREADS_APP_ID` 필수
+2. `THREADS_APP_SECRET` 이 없으면 `getpass` 로 입력받음 (화면에 안 보임), `.env` 에 저장
+3. `THREADS_AUTH_CODE` 가 없으면 `input` 으로 입력받음 (threads-auth-page 에서 복사한 코드)
+4. 코드 → 단기 토큰 (`POST /oauth/access_token`, form) → 장기 토큰 (`GET /access_token`, `th_exchange_token`) → `GET /v1.0/me?fields=id,username`
+5. `.env` 갱신: `THREADS_USER_ID`, `THREADS_ACCESS_TOKEN`, `THREADS_TOKEN_ISSUED`(오늘), `THREADS_AUTH_CODE` 삭제 (한 번 쓰면 끝)
+6. 출력: `성공: @username / 유효기간 N일` — **토큰·시크릿은 절대 출력하지 않음**. 실패 시 `실패: [code] message`, 종료 코드 1
+
+- [ ] **Step 1: 실패 테스트 작성**
+
+`tests/channels/test_threads_token.py` 에 추가:
+```python
+def test_update_env_file_can_remove_keys(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("A=1\nTHREADS_AUTH_CODE=abc\nB=2\n", encoding="utf-8")
+    update_env_file(env, {"B": "3"}, remove=["THREADS_AUTH_CODE"])
+    assert env.read_text(encoding="utf-8").splitlines() == ["A=1", "B=3"]
+```
+
+`tests/channels/test_get_token.py`:
+```python
+import httpx
+import pytest
+
+from channels.threads.client import BASE, ThreadsError
+from channels.threads.get_token import REDIRECT_URI, clean_code, exchange_code
+
+
+def test_clean_code_strips_suffix_and_spaces():
+    assert clean_code(" AQBx123#_ \n") == "AQBx123"
+    assert clean_code("AQBx123") == "AQBx123"
+
+
+def make_http(handler):
+    return httpx.Client(base_url=BASE, transport=httpx.MockTransport(handler))
+
+
+def test_exchange_code_runs_three_steps():
+    seen = []
+
+    def handler(req):
+        seen.append(req)
+        if req.url.path == "/oauth/access_token":
+            return httpx.Response(200, json={"access_token": "SHORT", "user_id": 1})
+        if req.url.path == "/access_token":
+            return httpx.Response(200, json={"access_token": "LONG", "expires_in": 5183944})
+        return httpx.Response(200, json={"id": "999", "username": "moruu_home"})
+
+    issued = exchange_code(make_http(handler), "app1", "sec1", "CODE")
+    assert issued.token == "LONG"
+    assert issued.expires_in == 5183944
+    assert (issued.user_id, issued.username) == ("999", "moruu_home")
+
+    form = dict(httpx.QueryParams(seen[0].content.decode()))
+    assert seen[0].method == "POST"
+    assert form == {
+        "client_id": "app1",
+        "client_secret": "sec1",
+        "grant_type": "authorization_code",
+        "redirect_uri": REDIRECT_URI,
+        "code": "CODE",
+    }
+    assert seen[1].url.params["grant_type"] == "th_exchange_token"
+    assert seen[1].url.params["access_token"] == "SHORT"
+    assert seen[2].url.path == "/v1.0/me"
+    assert seen[2].url.params["access_token"] == "LONG"
+
+
+def test_exchange_code_error_has_no_secret():
+    def handler(req):
+        return httpx.Response(400, json={"error": {"code": 100, "message": "Invalid code"}})
+
+    with pytest.raises(ThreadsError) as e:
+        exchange_code(make_http(handler), "app1", "sec1", "CODE")
+    assert e.value.code == "100"
+    assert "sec1" not in str(e.value)
+```
+
+- [ ] **Step 2: 실패 확인**
+
+Run: `uv run pytest tests/channels -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'channels.threads.get_token'`, `TypeError: update_env_file() got an unexpected keyword argument 'remove'`
+
+- [ ] **Step 3: `update_env_file` 수정 (`channels/threads/token.py`)**
+
+```python
+def update_env_file(path: Path, updates: dict[str, str], remove: Iterable[str] = ()) -> None:
+    drop = set(remove)
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    seen, out = set(), []
+    for line in lines:
+        key = line.split("=", 1)[0].strip()
+        if "=" in line and key in drop:
+            continue
+        if "=" in line and key in updates:
+            out.append(f"{key}={updates[key]}")
+            seen.add(key)
+        else:
+            out.append(line)
+    out += [f"{k}={v}" for k, v in updates.items() if k not in seen]
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+```
+import 줄을 `from collections.abc import Iterable, Mapping` 로 변경.
+
+- [ ] **Step 4: `channels/threads/get_token.py` 구현**
+
+```python
+"""Threads 장기 토큰 최초 발급 (get_token.ps1 대체, Windows·Mac 공통).
+실행: uv run python -m channels.threads.get_token
+threads-auth-page 에서 받은 인증 코드 → 단기 토큰 → 장기 토큰 → .env 저장."""
+from __future__ import annotations
+
+import getpass
+import sys
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+import httpx
+from dotenv import dotenv_values
+
+from channels.threads.client import BASE, ThreadsError
+from channels.threads.token import update_env_file
+
+REDIRECT_URI = "https://threads-auth.netlify.app/"
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+
+
+@dataclass(frozen=True)
+class Issued:
+    token: str
+    expires_in: int
+    user_id: str
+    username: str
+
+
+def clean_code(code: str) -> str:
+    code = code.strip()
+    return code[:-2] if code.endswith("#_") else code
+
+
+def _json(r: httpx.Response) -> dict:
+    if r.is_error:
+        try:
+            err = r.json().get("error", {})
+        except ValueError:
+            err = {}
+        raise ThreadsError(str(err.get("code", r.status_code)), err.get("message", r.reason_phrase))
+    return r.json()
+
+
+def exchange_code(http: httpx.Client, app_id: str, app_secret: str, code: str) -> Issued:
+    short = _json(http.post("/oauth/access_token", data={
+        "client_id": app_id,
+        "client_secret": app_secret,
+        "grant_type": "authorization_code",
+        "redirect_uri": REDIRECT_URI,
+        "code": code,
+    }))["access_token"]
+    long = _json(http.get("/access_token", params={
+        "grant_type": "th_exchange_token",
+        "client_secret": app_secret,
+        "access_token": short,
+    }))
+    me = _json(http.get("/v1.0/me", params={"fields": "id,username", "access_token": long["access_token"]}))
+    return Issued(long["access_token"], int(long["expires_in"]), str(me["id"]), me["username"])
+
+
+def main() -> int:
+    cfg = dotenv_values(ENV_PATH) if ENV_PATH.exists() else {}
+    app_id = cfg.get("THREADS_APP_ID")
+    if not app_id:
+        print(f"THREADS_APP_ID 값이 비어 있습니다 ({ENV_PATH} 확인)")
+        return 1
+    updates: dict[str, str] = {}
+    secret = cfg.get("THREADS_APP_SECRET")
+    if not secret:
+        secret = getpass.getpass("Threads 앱 시크릿 붙여넣기 (화면에 안 보임): ").strip()
+        updates["THREADS_APP_SECRET"] = secret
+    code = cfg.get("THREADS_AUTH_CODE") or input("인증 코드 붙여넣기: ")
+    try:
+        with httpx.Client(base_url=BASE, timeout=30) as http:
+            issued = exchange_code(http, app_id, secret, clean_code(code))
+    except ThreadsError as e:
+        print(f"실패: {e}")
+        return 1
+    updates |= {
+        "THREADS_USER_ID": issued.user_id,
+        "THREADS_ACCESS_TOKEN": issued.token,
+        "THREADS_TOKEN_ISSUED": date.today().isoformat(),
+    }
+    update_env_file(ENV_PATH, updates, remove=["THREADS_AUTH_CODE"])
+    print(f"성공: @{issued.username} / 유효기간 {issued.expires_in // 86400}일")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+- [ ] **Step 5: 통과 확인**
+
+Run: `uv run pytest tests/channels -v`
+Expected: 14 passed (기존 10 + 추가 4)
+
+- [ ] **Step 6: ps1 삭제 + CLAUDE.md**
+
+```bash
+git rm channels/threads/scripts/get_token.ps1
+```
+`CLAUDE.md` 의 `## 명령` 에 한 줄 추가:
+```markdown
+- Threads 토큰 최초 발급/재발급: threads-auth-page 에서 코드 복사 → `uv run python -m channels.threads.get_token`
+```
+
+- [ ] **Step 7: 전체 테스트 + 커밋**
+
+Run: `uv run pytest -q`
+
+```bash
+git add channels/threads/get_token.py channels/threads/token.py tests/channels CLAUDE.md
+git commit -m "feat(threads): 토큰 최초 발급을 Python으로 이식 (Windows·Mac 공통)"
+```
+
+---
+
 ### Task 7: 게시 파이프라인
 
 **Files:**
@@ -1859,7 +2104,7 @@ def main(argv: list[str] | None = None) -> int:
             run_collect(store, client, now, log)
     except ThreadsError as e:
         if e.code == TOKEN_EXPIRED:
-            log.error("Threads 토큰 만료 — channels/threads/scripts/get_token.ps1 로 재발급 필요")
+            log.error("Threads 토큰 만료 — uv run python -m channels.threads.get_token 으로 재발급 필요")
             return 2
         raise
     return 0
@@ -1872,7 +2117,7 @@ if __name__ == "__main__":
 - [ ] **Step 2: 전체 테스트**
 
 Run: `uv run pytest -v`
-Expected: 전부 PASS (smoke 1 + core 21 + channels 10 + pipelines 16 = 48)
+Expected: 전부 PASS (smoke 1 + core 21 + channels 14 + pipelines 16 = 52)
 
 - [ ] **Step 3: dry-run (빈 DB)**
 
