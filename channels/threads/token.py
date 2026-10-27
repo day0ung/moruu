@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import date
 from pathlib import Path
 
@@ -13,11 +13,14 @@ def needs_refresh(issued: date, today: date) -> bool:
     return (today - issued).days >= REFRESH_AFTER_DAYS
 
 
-def update_env_file(path: Path, updates: dict[str, str]) -> None:
+def update_env_file(path: Path, updates: dict[str, str], remove: Iterable[str] = ()) -> None:
+    drop = set(remove)
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
     seen, out = set(), []
     for line in lines:
         key = line.split("=", 1)[0].strip()
+        if "=" in line and key in drop:
+            continue
         if "=" in line and key in updates:
             out.append(f"{key}={updates[key]}")
             seen.add(key)

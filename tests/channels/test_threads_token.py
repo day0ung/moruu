@@ -39,3 +39,10 @@ def test_persist_token_in_actions_uses_gh_secret(tmp_path):
     assert calls[1][0][3] == "THREADS_TOKEN_ISSUED"
     assert calls[1][1] == "2026-11-20"
     assert not (tmp_path / ".env").exists()
+
+
+def test_update_env_file_can_remove_keys(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("A=1\nTHREADS_AUTH_CODE=abc\nB=2\n", encoding="utf-8")
+    update_env_file(env, {"B": "3"}, remove=["THREADS_AUTH_CODE"])
+    assert env.read_text(encoding="utf-8").splitlines() == ["A=1", "B=3"]
