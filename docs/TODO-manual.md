@@ -17,8 +17,8 @@ uv run pytest -q          # 전부 통과해야 함
 
 ## 1. GitHub 비공개 레포 + push
 
-- [ ] github.com/new → 이름 `moruu`, **Private**, README 없이 생성 (계정 `day0ung`)
-- [ ] 회사 PC 또는 개인 PC에서:
+- [x] github.com/new → 이름 `moruu` 생성 (계정 `day0ung`) — 완료
+- [x] push 완료 (main, feat/threads-semi-auto) — 2026-10-27
 ```bash
 git push -u origin main
 git push -u origin feat/threads-semi-auto
