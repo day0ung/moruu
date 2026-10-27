@@ -47,10 +47,14 @@ def main(argv: list[str] | None = None) -> int:
                 log.error("Threads 토큰 만료 — uv run python -m channels.threads.get_token 으로 재발급 필요")
                 return 2
             log.warning("Threads 토큰 갱신 실패 — 기존 토큰으로 계속")
+            exit_code = 3
         except httpx.HTTPError:
             log.warning("Threads 토큰 갱신 실패 — 기존 토큰으로 계속")
+            exit_code = 3
         else:
             token = new_token
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                print(f"::add-mask::{new_token}")
             log = setup_logging([token, s.threads_token, s.notion_token])
             try:
                 persist_token(token, now.date(), env_path=ROOT / ".env", environ=os.environ)

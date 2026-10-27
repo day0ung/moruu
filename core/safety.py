@@ -2,6 +2,7 @@
 blocking_problems → 사람이 고쳐야 함 (FAILED). hold_reasons → 다음 실행으로 미룸 (APPROVED 유지)."""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from core import schema as S
@@ -18,6 +19,12 @@ def blocking_problems(post: Post) -> list[str]:
         problems.append(f"본문 {THREADS_MAX_CHARS}자 초과 ({len(post.text)}자)")
     if post.link and not post.disclosure.strip():
         problems.append("링크가 있는데 대가성문구 없음")
+    if re.search(r"https?://|www\.|coupa\.ng|link\.coupang", post.text, re.IGNORECASE):
+        problems.append("본문에 링크 있음 — 링크 칸에 넣을 것")
+    if post.role == S.ROLE_REVENUE and not post.link:
+        problems.append("수익 글인데 링크 없음")
+    if post.link and len(f"{post.link}\n\n{post.disclosure}") > THREADS_MAX_CHARS:
+        problems.append(f"링크+대가성문구 {THREADS_MAX_CHARS}자 초과")
     if post.media_id:
         problems.append("이미 게시ID 있음")
     return problems

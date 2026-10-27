@@ -148,3 +148,10 @@ def test_reply_token_expired_marks_posted_then_raises():
     with pytest.raises(ThreadsError):
         run(store, client)
     assert store.posted == [("TH-LIVING-20261101-001", "m1", None)]
+
+
+def test_same_content_id_posted_10_days_ago_is_held():
+    old = make_post(posted_at=NOW - timedelta(days=10), media_id="m")
+    store, client = FakeStore(due=[make_post()], recent=[old]), FakeClient()
+    assert run(store, client) == []
+    assert client.calls == [] and store.failed == []

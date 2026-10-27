@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import httpx
 import pytest
 
 import pipelines.threads_post.__main__ as cli
@@ -80,5 +81,23 @@ def test_persist_failure_continues_and_returns_3(env):
 def test_refresh_other_error_keeps_old_token(env):
     env["refresh"] = ThreadsError("1", "x")
 
-    assert cli.main([]) == 0
+    assert cli.main([]) == 3
     assert env["published_with"] == OLD_TOKEN
+
+
+def test_refresh_network_error_keeps_old_token_returns_3(env):
+    env["refresh"] = httpx.ConnectError("boom")
+
+    assert cli.main([]) == 3
+    assert env["published_with"] == OLD_TOKEN
+
+
+def test_refresh_masks_new_token_only_in_github_actions(env, monkeypatch, capsys):
+    env["refresh"] = ("NEW", 5184000)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert cli.main([]) == 0
+    assert "::add-mask::NEW" in capsys.readouterr().out
+
+    monkeypatch.delenv("GITHUB_ACTIONS")
+    assert cli.main([]) == 0
+    assert "NEW" not in capsys.readouterr().out

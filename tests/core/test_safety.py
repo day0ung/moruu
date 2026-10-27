@@ -47,3 +47,20 @@ def test_revenue_after_revenue_holds():
 def test_same_content_id_in_recent_is_held():
     assert blocking_problems(P) == []
     assert hold_reasons(P, [posted("TH-1", "정보", 1)], 3, NOW)
+
+
+def test_url_in_body_blocks():
+    reasons = blocking_problems(replace(P, text="여기서 사세요 https://link.coupang.com/a/x"))
+    assert any("본문에 링크" in r for r in reasons)
+    assert blocking_problems(replace(P, text="링크 없는 평범한 글")) == []
+
+
+def test_revenue_without_link_blocks():
+    assert "수익 글인데 링크 없음" in blocking_problems(replace(P, role="수익"))
+    ok = replace(P, role="수익", link="https://x", disclosure="문구")
+    assert blocking_problems(ok) == []
+
+
+def test_reply_too_long_blocks():
+    long = replace(P, link="https://x/" + "a" * 400, disclosure="문" * 200)
+    assert any("초과" in r for r in blocking_problems(long))

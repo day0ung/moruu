@@ -40,13 +40,16 @@ def _record_posted(store, post: Post, media_id: str, reply_id: str | None, now: 
         raise
 
 
+RECENT_DAYS = 30  # 중복 content_id 검사 범위
+
+
 def run_publish(store, client, daily_cap: int, now: datetime, log: logging.Logger, *,
                 dry_run: bool = False, sleep=time.sleep) -> list[str]:
     due = store.approved_threads_due(now)
     if not due:
         log.info("게시할 APPROVED 글 없음")
         return []
-    recent = store.posted_threads_since(now - timedelta(days=1))
+    recent = store.posted_threads_since(now - timedelta(days=RECENT_DAYS))
     quota = client.quota_left()
     done: list[str] = []
 
