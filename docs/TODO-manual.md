@@ -28,10 +28,10 @@ git push -u origin feat/threads-semi-auto
 
 ## 2. Notion Integration (봇 토큰)
 
-- [ ] https://www.notion.so/profile/integrations → 새 API 통합 → 이름 `moruu-bot`, 워크스페이스 "young님의 워크스페이스"
-- [ ] 기능: 콘텐츠 **읽기·업데이트·삽입** → 저장 → 내부 통합 시크릿 복사
-- [ ] Notion **moruu 운영** 페이지 → `···` → 연결 → `moruu-bot` 추가 (하위 DB 전부 적용)
-- [ ] `.env` 에 직접 입력:
+- [x] https://www.notion.so/profile/integrations → 새 API 통합 → 이름 `moruu-bot`, 워크스페이스 "young님의 워크스페이스"
+- [x] 기능: 콘텐츠 **읽기·업데이트·삽입** → 저장 → 내부 통합 시크릿 복사
+- [x] Notion **moruu 운영** 페이지 → `···` → 연결 → `moruu-bot` 추가 (하위 DB 전부 적용)
+- [x] `.env` 에 직접 입력 (완료 — 시크릿이 채팅에 노출됐으므로 시험 후 재발급 권장):
 ```
 NOTION_TOKEN=<복사한 시크릿>
 NOTION_DB_CONTENT=d21f8e04b3c0484083441208c4803055
@@ -39,16 +39,16 @@ NOTION_DB_METRICS=cf3660bfccba4e039154da7f906825d2
 NOTION_DB_FAILURES=9704e07520644ec2b87ded4c93f15ff0
 MORUU_DAILY_CAP=3
 ```
-- [ ] 연결 확인 (값은 출력 안 됨):
+- [x] 연결 확인 (값은 출력 안 됨):
 ```bash
 uv run python -c "from dotenv import load_dotenv; import os; load_dotenv(); from core.config import Settings; Settings.from_env(os.environ); print('ok')"
 ```
 
 ## 3. 첫 게시 시험 (로컬)
 
-- [ ] Notion 콘텐츠 DB의 예시 글(`TH-LIVING-20261101-001`)에서 `예약시각` = 지금, `status` = **APPROVED**
-- [ ] `uv run python -m pipelines.threads_post --dry-run` → `[dry-run] 게시 예정: TH-LIVING-20261101-001`
-- [ ] `uv run python -m pipelines.threads_post --only publish` → Threads 앱에 글 확인, Notion status=POSTED·게시ID 채워짐
+- [x] Notion 콘텐츠 DB의 예시 글(`TH-LIVING-20261101-001`)에서 `예약시각` = 지금, `status` = **APPROVED**
+- [x] `uv run python -m pipelines.threads_post --dry-run` → `[dry-run] 게시 예정: TH-LIVING-20261101-001`
+- [x] `uv run python -m pipelines.threads_post --only publish` (2026-10-27 16:27 첫 게시 성공) → Threads 앱에 글 확인, Notion status=POSTED·게시ID 채워짐
 - [ ] 링크 글 1개 시험: `링크` + `대가성문구` 채우고 같은 순서로 → 첫 댓글에 링크+문구 확인
 - [ ] 시험 글 삭제 여부 결정
 
