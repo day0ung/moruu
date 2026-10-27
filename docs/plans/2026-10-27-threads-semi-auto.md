@@ -1982,7 +1982,7 @@ Claude Code에서 `/mcp` → notion → OAuth 완료
 | 본문 | rich_text | |
 | 링크 | url | |
 | 대가성문구 | rich_text | |
-| status | select | DRAFT, APPROVED, POSTED, FAILED |
+| status | select | DRAFT, APPROVED, POSTING, POSTED, FAILED |
 | 예약시각 | date (시간 포함) | |
 | 게시시각 | date | |
 | 게시ID | rich_text | |
