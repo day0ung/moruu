@@ -65,6 +65,9 @@ class NotionStore:
     def mark_posting(self, post: Post) -> None:
         self._update(post.page_id, {S.STATUS: S.select(S.POSTING)})
 
+    def mark_approved(self, post: Post) -> None:
+        self._update(post.page_id, {S.STATUS: S.select(S.APPROVED)})
+
     def mark_posted(self, post: Post, media_id: str, reply_id: str | None, at: datetime) -> None:
         props = {S.STATUS: S.select(S.POSTED), S.MEDIA_ID: S.rich(media_id), S.POSTED_AT: S.date(at)}
         if reply_id:

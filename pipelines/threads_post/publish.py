@@ -76,6 +76,8 @@ def run_publish(store, client, daily_cap: int, now: datetime, log: logging.Logge
             media_id = _with_retry(lambda: client.post_text(post.text), sleep)
         except ThreadsError as e:
             if e.code == TOKEN_EXPIRED:
+                # 190 이면 게시되지 않았으므로 APPROVED 로 되돌려 다음 실행에서 다시 시도할 수 있게 한다.
+                store.mark_approved(post)
                 raise
             log.error("%s 게시 실패: %s", cid, e)
             store.mark_failed(post, f"post: {e}")

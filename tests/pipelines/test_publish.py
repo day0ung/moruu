@@ -92,6 +92,7 @@ def test_token_expired_aborts():
     with pytest.raises(ThreadsError):
         run(store, client)
     assert len(client.calls) == 1
+    assert store.reverted == ["TH-LIVING-20261101-001"]
 
 
 def test_no_quota_stops():

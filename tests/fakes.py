@@ -26,6 +26,7 @@ class FakeStore:
         self.recent = list(recent)
         self.fail_mark_posted = fail_mark_posted
         self.posting = []
+        self.reverted = []
         self.posted, self.failed, self.failures, self.metrics, self.collected = [], [], [], [], []
 
     def approved_threads_due(self, now):
@@ -36,6 +37,9 @@ class FakeStore:
 
     def mark_posting(self, post):
         self.posting.append(post.content_id)
+
+    def mark_approved(self, post):
+        self.reverted.append(post.content_id)
 
     def mark_posted(self, post, media_id, reply_id, at):
         if self.fail_mark_posted:
