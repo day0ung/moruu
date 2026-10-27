@@ -15,6 +15,19 @@ class ThreadsError(Exception):
         self.message = message
 
 
+def raise_for_error(r: httpx.Response) -> None:
+    if not r.is_error:
+        return
+    try:
+        body = r.json()
+    except ValueError:
+        body = {}
+    err = body.get("error") if isinstance(body, dict) else None
+    if not isinstance(err, dict):
+        err = {}
+    raise ThreadsError(str(err.get("code", r.status_code)), str(err.get("message") or r.reason_phrase))
+
+
 class ThreadsClient:
     def __init__(self, user_id: str, token: str, http: httpx.Client | None = None):
         self._uid = user_id
@@ -23,12 +36,7 @@ class ThreadsClient:
 
     def _call(self, method: str, path: str, **params) -> dict:
         r = self._http.request(method, path, params={**params, "access_token": self._token})
-        if r.is_error:
-            try:
-                err = r.json().get("error", {})
-            except ValueError:
-                err = {}
-            raise ThreadsError(str(err.get("code", r.status_code)), err.get("message", r.reason_phrase))
+        raise_for_error(r)
         return r.json()
 
     def post_text(self, text: str, reply_to: str | None = None) -> str:

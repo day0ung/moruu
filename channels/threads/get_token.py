@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 from dotenv import dotenv_values
 
-from channels.threads.client import BASE, ThreadsError
+from channels.threads.client import BASE, ThreadsError, raise_for_error
 from channels.threads.token import update_env_file
 
 REDIRECT_URI = "https://threads-auth.netlify.app/"
@@ -33,12 +33,7 @@ def clean_code(code: str) -> str:
 
 
 def _json(r: httpx.Response) -> dict:
-    if r.is_error:
-        try:
-            err = r.json().get("error", {})
-        except ValueError:
-            err = {}
-        raise ThreadsError(str(err.get("code", r.status_code)), err.get("message", r.reason_phrase))
+    raise_for_error(r)
     return r.json()
 
 
@@ -65,11 +60,10 @@ def main() -> int:
     if not app_id:
         print(f"THREADS_APP_ID 값이 비어 있습니다 ({ENV_PATH} 확인)")
         return 1
-    updates: dict[str, str] = {}
     secret = cfg.get("THREADS_APP_SECRET")
     if not secret:
         secret = getpass.getpass("Threads 앱 시크릿 붙여넣기 (화면에 안 보임): ").strip()
-        updates["THREADS_APP_SECRET"] = secret
+        update_env_file(ENV_PATH, {"THREADS_APP_SECRET": secret})  # 교환 실패해도 시크릿은 남긴다
     code = cfg.get("THREADS_AUTH_CODE") or input("인증 코드 붙여넣기: ")
     try:
         with httpx.Client(base_url=BASE, timeout=30) as http:
@@ -77,7 +71,11 @@ def main() -> int:
     except ThreadsError as e:
         print(f"실패: {e}")
         return 1
-    updates |= {
+    except (httpx.HTTPError, KeyError, ValueError):
+        # 예외 본문은 출력하지 않는다 (URL·시크릿이 섞일 수 있음)
+        print("실패: 네트워크 오류 또는 예상과 다른 응답입니다 (토큰·코드는 출력하지 않음)")
+        return 1
+    updates = {
         "THREADS_USER_ID": issued.user_id,
         "THREADS_ACCESS_TOKEN": issued.token,
         "THREADS_TOKEN_ISSUED": date.today().isoformat(),

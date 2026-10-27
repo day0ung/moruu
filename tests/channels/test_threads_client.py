@@ -43,6 +43,12 @@ def test_non_json_error_uses_status():
     assert e.value.code == "502"
 
 
+def test_non_dict_error_body_uses_status():
+    with pytest.raises(ThreadsError) as e:
+        make(lambda req: httpx.Response(400, json=["oops"])).quota_left()
+    assert e.value.code == "400"
+
+
 def test_quota_left():
     body = {"data": [{"quota_usage": 4, "config": {"quota_total": 250}}]}
     assert make(lambda req: httpx.Response(200, json=body)).quota_left() == 246

@@ -53,3 +53,52 @@ def test_exchange_code_error_has_no_secret():
         exchange_code(make_http(handler), "app1", "sec1", "CODE")
     assert e.value.code == "100"
     assert "sec1" not in str(e.value)
+
+
+def _write_env(path, text):
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_main_success_saves_token_and_hides_secrets(tmp_path, monkeypatch, capsys):
+    from channels.threads import get_token
+
+    env = _write_env(tmp_path / ".env", "THREADS_APP_ID=app1\nTHREADS_APP_SECRET=sec1\nTHREADS_AUTH_CODE=CODE#_\n")
+    monkeypatch.setattr(get_token, "ENV_PATH", env)
+    seen = {}
+
+    def fake_exchange(http, app_id, app_secret, code):
+        seen["code"] = code
+        return get_token.Issued("LONG", 5184000, "999", "moruu_home")
+
+    monkeypatch.setattr(get_token, "exchange_code", fake_exchange)
+
+    assert get_token.main() == 0
+    assert seen["code"] == "CODE"
+    text = env.read_text(encoding="utf-8")
+    assert "THREADS_ACCESS_TOKEN=LONG" in text
+    assert "THREADS_USER_ID=999" in text
+    assert "THREADS_AUTH_CODE" not in text
+    out = capsys.readouterr().out
+    assert "@moruu_home" in out
+    assert "LONG" not in out
+    assert "sec1" not in out
+
+
+def test_main_network_failure_keeps_prompted_secret(tmp_path, monkeypatch, capsys):
+    from channels.threads import get_token
+
+    env = _write_env(tmp_path / ".env", "THREADS_APP_ID=app1\nTHREADS_AUTH_CODE=CODE\n")
+    monkeypatch.setattr(get_token, "ENV_PATH", env)
+    monkeypatch.setattr(get_token.getpass, "getpass", lambda prompt="": "sec1")
+
+    def fake_exchange(http, app_id, app_secret, code):
+        raise httpx.ConnectError("boom")
+
+    monkeypatch.setattr(get_token, "exchange_code", fake_exchange)
+
+    assert get_token.main() == 1
+    out = capsys.readouterr().out
+    assert "실패" in out
+    assert "sec1" not in out
+    assert "THREADS_APP_SECRET=sec1" in env.read_text(encoding="utf-8")
