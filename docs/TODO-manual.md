@@ -49,7 +49,7 @@ uv run python -c "from dotenv import load_dotenv; import os; load_dotenv(); from
 - [x] Notion 콘텐츠 DB의 예시 글(`TH-LIVING-20261101-001`)에서 `예약시각` = 지금, `status` = **APPROVED**
 - [x] `uv run python -m pipelines.threads_post --dry-run` → `[dry-run] 게시 예정: TH-LIVING-20261101-001`
 - [x] `uv run python -m pipelines.threads_post --only publish` (2026-10-27 16:27 첫 게시 성공) → Threads 앱에 글 확인, Notion status=POSTED·게시ID 채워짐
-- [ ] 링크 글 1개 시험: `링크` + `대가성문구` 채우고 같은 순서로 → 첫 댓글에 링크+문구 확인
+- [x] 링크 글 1개 시험 (2026-10-28 우산꽂이 TH-LIVING-20261031-003): `링크` + `대가성문구` 채우고 같은 순서로 → 첫 댓글에 링크+문구 확인
 - [ ] 시험 글 삭제 여부 결정
 
 ## 4. Threads 토큰 재발급이 필요할 때 (만료·새 PC)
@@ -74,6 +74,19 @@ done
 - [ ] **대가성 문구 위치**: 수익 글 본문 맨 앞에도 고지를 넣을지 (공정위 추천·보증 심사지침 확인) — 수익 글 자동 게시 전까지
 - [ ] 쿠팡 파트너스 공식 대가성 문구 확인 → Notion 허브 페이지에 기록
 - [ ] 운영 전제: **수동 게시 30개 전에는 APPROVED 를 쓰지 않음** (자동 게시 실질적 OFF)
+
+## 6-1. 쿠팡 파트너스 가입
+
+- [x] 개인으로 가입 → 사이트 등록에 **Threads 프로필 주소** (YouTube 는 만든 뒤 추가 등록) — 자세히: [youtube-shorts-coupang.md](youtube-shorts-coupang.md)
+
+## 6-2. Google Cloud TTS 키 (쇼츠 음성)
+
+- [ ] https://console.cloud.google.com → 새 프로젝트 `moruu`
+- [ ] 결제 계정 연결 (카드 등록 — 무료 한도 안이면 0원) → **예산 및 알림**에 소액 예산(예: 1,000원) 알림 설정
+- [ ] API 및 서비스 → 라이브러리 → **Cloud Text-to-Speech API** 사용 설정
+- [ ] 사용자 인증 정보 → API 키 만들기 → **키 제한: API 제한 = Cloud Text-to-Speech API 만**
+- [ ] `.env` 에 `GOOGLE_TTS_API_KEY=` 직접 입력 (Mac 의 `.env` 에도) — 채팅에 붙여넣지 말 것
+- [ ] 확인: `uv run python -m channels.tts --list-voices`
 
 ## 7. 나중에 (조건 충족 시)
 
