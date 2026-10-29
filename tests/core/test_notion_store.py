@@ -110,3 +110,29 @@ def test_log_failure_goes_to_failures_db():
     assert body["parent"] == {"database_id": "db-f"}
     assert body["properties"]["step"] == {"select": {"name": "post"}}
     assert body["properties"]["retry_count"] == {"number": 2}
+
+
+def test_approved_shorts_filters_channel():
+    store, sent = make_store([{"results": [page("p1", "YT-1")], "has_more": False}])
+    assert [p.content_id for p in store.approved_shorts()] == ["YT-1"]
+    conds = sent[0][2]["filter"]["and"]
+    assert {"property": "status", "select": {"equals": "APPROVED"}} in conds
+    assert {"property": "채널", "select": {"equals": "YT-쇼핑"}} in conds
+
+
+def test_page_blocks_paginates():
+    store, sent = make_store([
+        {"results": [{"type": "heading_2"}], "has_more": True, "next_cursor": "c2"},
+        {"results": [{"type": "paragraph"}], "has_more": False},
+    ])
+    assert [b["type"] for b in store.page_blocks("page-1")] == ["heading_2", "paragraph"]
+    assert sent[0][:2] == ("GET", "/v1/blocks/page-1/children")
+    assert sent[1][:2] == ("GET", "/v1/blocks/page-1/children")
+
+
+def test_mark_rendered_sets_status_and_clears_error():
+    store, sent = make_store([{}])
+    store.mark_rendered(post())
+    props = sent[0][2]["properties"]
+    assert props["status"] == {"select": {"name": "RENDERED"}}
+    assert props["오류"] == {"rich_text": []}

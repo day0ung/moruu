@@ -19,10 +19,12 @@ ERROR = "오류"
 COLLECTED = {24: "수집_24h", 72: "수집_72h", 168: "수집_7d"}
 
 CH_THREADS = "Threads"
+CH_YT_SHOP = "YT-쇼핑"
 APPROVED = "APPROVED"
 POSTING = "POSTING"
 POSTED = "POSTED"
 FAILED = "FAILED"
+RENDERED = "RENDERED"  # 쇼츠: mp4 만들어짐, 업로드 전
 ROLE_REVENUE = "수익"
 
 # 성과 DB

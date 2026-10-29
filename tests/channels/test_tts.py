@@ -89,3 +89,9 @@ def test_srt_groups_words_and_uses_next_start():
 
 def test_srt_without_end_adds_tail():
     assert "00:00:01,000 --> 00:00:01,600" in to_srt([Word("a", 1.0)], end=None)
+
+
+def test_cues_match_srt_timing():
+    from channels.tts.srt import Cue, cues
+    words = [Word("a", 0.0), Word("b", 0.4), Word("c", 0.8), Word("d", 1.25)]
+    assert cues(words, end=1.9, per=3) == [Cue(0.0, 1.25, "a b c"), Cue(1.25, 1.9, "d")]

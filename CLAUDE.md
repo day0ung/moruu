@@ -17,6 +17,7 @@
 ## 명령
 - 테스트: `uv run pytest`
 - 게시/수집 시험: `uv run python -m pipelines.threads_post --dry-run`
+- 쇼츠 렌더: `uv run python -m pipelines.shopping_shorts [--dry-run] [--content-id ID]` → `out/shorts/{content_id}.mp4` (대본 형식: docs/notion-schema.md)
 - Threads 토큰 최초 발급/재발급: threads-auth-page 에서 코드 복사 → `uv run python -m channels.threads.get_token`
 - Notion 속성 이름은 core/schema.py 와 docs/notion-schema.md 를 같이 고친다.
 

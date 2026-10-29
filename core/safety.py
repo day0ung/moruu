@@ -9,6 +9,11 @@ from core import schema as S
 from core.models import KST, Post
 
 THREADS_MAX_CHARS = 500
+BANNED_WORDS = ("최고", "필수", "무조건", "혁신적")  # CLAUDE.md 절대 규칙
+
+
+def banned_words(text: str) -> list[str]:
+    return [w for w in BANNED_WORDS if w in text]
 
 
 def blocking_problems(post: Post) -> list[str]:

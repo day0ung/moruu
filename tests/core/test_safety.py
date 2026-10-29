@@ -64,3 +64,9 @@ def test_revenue_without_link_blocks():
 def test_reply_too_long_blocks():
     long = replace(P, link="https://x/" + "a" * 400, disclosure="문" * 200)
     assert any("초과" in r for r in blocking_problems(long))
+
+
+def test_banned_words_found_inside_compounds():
+    from core.safety import banned_words
+    assert banned_words("주방 필수템, 최고예요") == ["최고", "필수"]
+    assert banned_words("틈새 청소솔") == []

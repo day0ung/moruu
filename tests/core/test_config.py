@@ -34,3 +34,14 @@ def test_missing_keys_are_listed_without_values():
     assert "NOTION_TOKEN" in str(e.value)
     assert "NOTION_DB_CONTENT" in str(e.value)
     assert "tok" not in str(e.value)
+
+
+def test_shorts_settings_needs_only_notion_and_tts():
+    from core.config import ShortsSettings
+    env = {k: FULL[k] for k in ("NOTION_TOKEN", "NOTION_DB_CONTENT", "NOTION_DB_METRICS", "NOTION_DB_FAILURES")}
+    s = ShortsSettings.from_env({**env, "GOOGLE_TTS_API_KEY": "gk", "TTS_RATE": "1.1"})
+    assert (s.tts_key, s.tts_rate, s.tts_voice) == ("gk", 1.1, "ko-KR-Neural2-A")
+    with pytest.raises(ConfigError) as e:
+        ShortsSettings.from_env(env)
+    assert "GOOGLE_TTS_API_KEY" in str(e.value)
+    assert ShortsSettings.from_env(env, need_tts=False).tts_key == ""

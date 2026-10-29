@@ -26,8 +26,8 @@ class NotionStore:
         self._http = http or httpx.Client(base_url=API, timeout=30)
         self._headers = {"Authorization": f"Bearer {token}", "Notion-Version": NOTION_VERSION}
 
-    def _req(self, method: str, path: str, body: dict | None = None) -> dict:
-        r = self._http.request(method, path, json=body, headers=self._headers)
+    def _req(self, method: str, path: str, body: dict | None = None, params: dict | None = None) -> dict:
+        r = self._http.request(method, path, json=body, params=params, headers=self._headers)
         r.raise_for_status()
         return r.json()
 
@@ -56,6 +56,25 @@ class NotionStore:
     def posted_threads_since(self, since: datetime) -> list[Post]:
         return self._threads(S.POSTED, S.POSTED_AT, "on_or_after", since)
 
+    def approved_shorts(self) -> list[Post]:
+        filter_ = {"and": [
+            {"property": S.STATUS, "select": {"equals": S.APPROVED}},
+            {"property": S.CHANNEL, "select": {"equals": S.CH_YT_SHOP}},
+        ]}
+        pages = self._query(self._dbs.content, filter_, [{"timestamp": "created_time", "direction": "ascending"}])
+        return [parse_post(p) for p in pages]
+
+    def page_blocks(self, page_id: str) -> list[dict]:
+        """페이지 본문 최상위 블록 (하위 블록은 읽지 않음)."""
+        params = {"page_size": 100}
+        blocks: list[dict] = []
+        while True:
+            data = self._req("GET", f"/v1/blocks/{page_id}/children", params=params)
+            blocks += data["results"]
+            if not data.get("has_more"):
+                return blocks
+            params["start_cursor"] = data["next_cursor"]
+
     def _update(self, page_id: str, props: dict) -> None:
         self._req("PATCH", f"/v1/pages/{page_id}", {"properties": props})
 
@@ -76,6 +95,9 @@ class NotionStore:
 
     def mark_failed(self, post: Post, error: str) -> None:
         self._update(post.page_id, {S.STATUS: S.select(S.FAILED), S.ERROR: S.rich(error)})
+
+    def mark_rendered(self, post: Post) -> None:
+        self._update(post.page_id, {S.STATUS: S.select(S.RENDERED), S.ERROR: {"rich_text": []}})
 
     def mark_collected(self, post: Post, hours: list[int]) -> None:
         self._update(post.page_id, {S.COLLECTED[h]: S.checkbox(True) for h in hours})

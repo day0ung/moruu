@@ -19,7 +19,7 @@
 | content_id | title | `TH-주제-YYYYMMDD-001` |
 | 채널 | select | Threads, YT-쇼핑, YT-드라마 |
 | 역할 | select | 인지, 브릿지, 수익 |
-| status | select | DRAFT, APPROVED, POSTING, POSTED, FAILED |
+| status | select | DRAFT, APPROVED, POSTING, POSTED, FAILED, RENDERED(쇼츠 mp4 완성) |
 | 예약시각 | date | 비어 있으면 게시 안 됨 |
 | 본문 | rich_text | 500자 이하, 링크 직접 넣지 않기 |
 | 글자수 | formula | `length(prop("본문"))` (사람용, 코드 미사용) |
@@ -33,6 +33,20 @@
 | 수집_24h / 수집_72h / 수집_7d | checkbox | 자동 |
 
 보기: 기본 표 · 상태 보드(status 그룹) · 예약 캘린더(예약시각) · 🧵 Threads(채널=Threads 표) · 📺 YouTube 쇼츠(채널=YT-쇼핑, status 보드)
+
+### YT-쇼핑 페이지 본문 (쇼츠 대본)
+
+`pipelines/shopping_shorts` 가 읽는다. `대가성문구` 필수.
+
+```
+## 장면 1 · 이미지          ← "장면 N · 카드|이미지" (AI영상 은 아직 미지원)
+(코드 블록: 이미지 프롬프트 — 무시됨)
+(이미지 블록, 캡션 = 출처: AI:ChatGPT / 무료 사이트 URL)
+화면: 가스레인지 모서리 **기름때**   ← 굵게 = 노란 강조, 30자 이하
+내레이션: 가스레인지 모서리, 닦기 불편하셨죠?
+```
+- 마무리 카드(프로필 링크 안내 · 모양·크기 확인 · 대가성문구)는 자동으로 붙는다.
+- 흐름: DRAFT → (사람) APPROVED → (렌더) RENDERED, 검사·렌더 실패는 FAILED + 오류 칸.
 
 ## 성과
 
