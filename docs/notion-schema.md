@@ -32,7 +32,7 @@
 | 오류 | rich_text | 자동 (FAILED 사유) |
 | 수집_24h / 수집_72h / 수집_7d | checkbox | 자동 |
 
-보기: 기본 표 · 상태 보드(status 그룹) · 예약 캘린더(예약시각)
+보기: 기본 표 · 상태 보드(status 그룹) · 예약 캘린더(예약시각) · 🧵 Threads(채널=Threads 표) · 📺 YouTube 쇼츠(채널=YT-쇼핑, status 보드)
 
 ## 성과
 
