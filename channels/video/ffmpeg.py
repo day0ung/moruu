@@ -31,6 +31,17 @@ class Overlay:
     stop: float | None = None
 
 
+def _fit(size: tuple[int, int], duration: float, zoom: bool) -> str:
+    w, h = size
+    base = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
+    if zoom:
+        frames = max(1, round(duration * FPS))
+        # 2배로 키운 뒤 zoompan — 원본 크기에서 하면 떨림이 보인다
+        base += (f",scale={w * 2}:{h * 2},zoompan=z='1+{ZOOM}*on/{frames}'"
+                 f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={FPS}")
+    return base
+
+
 def segment_args(out: Path, background: Path, audio: Path, duration: float,
                  overlays: list[Overlay], zoom: bool) -> list[str]:
     args = ["-y", "-loop", "1", "-framerate", str(FPS), "-t", f"{duration:.3f}", "-i", str(background),
@@ -38,13 +49,7 @@ def segment_args(out: Path, background: Path, audio: Path, duration: float,
     for o in overlays:
         args += ["-loop", "1", "-framerate", str(FPS), "-t", f"{duration:.3f}", "-i", str(o.png)]
 
-    base = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}"
-    if zoom:
-        frames = max(1, round(duration * FPS))
-        # 2배로 키운 뒤 zoompan — 원본 크기에서 하면 떨림이 보인다
-        base += (f",scale={W * 2}:{H * 2},zoompan=z='1+{ZOOM}*on/{frames}'"
-                 f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}")
-    chain = [f"[0:v]{base},setsar=1,format=yuv420p[v0]"]
+    chain = [f"[0:v]{_fit((W, H), duration, zoom)},setsar=1,format=yuv420p[v0]"]
     for i, o in enumerate(overlays):
         enable = "" if o.start is None else f":enable='between(t,{o.start:.3f},{o.stop:.3f})'"
         chain.append(f"[v{i}][{i + 2}:v]overlay=0:0{enable}[v{i + 1}]")
@@ -52,6 +57,61 @@ def segment_args(out: Path, background: Path, audio: Path, duration: float,
 
     return args + ["-filter_complex", ";".join(chain), "-map", f"[v{len(overlays)}]", "-map", "[a]",
                    "-t", f"{duration:.3f}", *_ENCODE, str(out)]
+
+
+def scene_args(out: Path, background: Path, clips: list[tuple[Path, float]], duration: float,
+               overlays: list[Overlay], size: tuple[int, int], fade: float = 0.3) -> list[str]:
+    """드라마 장면 하나: 그림 확대 + 자막 + 줄 음성들을 시각에 맞춰 섞고, 앞뒤로 어두워졌다 밝아짐."""
+    if not clips:
+        raise ValueError("장면에 음성 없음")
+    t = f"{duration:.3f}"
+    args = ["-y", "-loop", "1", "-framerate", str(FPS), "-t", t, "-i", str(background)]
+    for audio, _ in clips:
+        args += ["-i", str(audio)]
+    first = 1 + len(clips)
+    for o in overlays:
+        args += ["-loop", "1", "-framerate", str(FPS), "-t", t, "-i", str(o.png)]
+
+    chain = [f"[0:v]{_fit(size, duration, True)},setsar=1,format=yuv420p[v0]"]
+    for i, o in enumerate(overlays):
+        enable = "" if o.start is None else f":enable='between(t,{o.start:.3f},{o.stop:.3f})'"
+        chain.append(f"[v{i}][{first + i}:v]overlay=0:0{enable}[v{i + 1}]")
+    chain.append(f"[v{len(overlays)}]fade=t=in:st=0:d={fade:.3f},"
+                 f"fade=t=out:st={duration - fade:.3f}:d={fade:.3f}[v]")
+    for i, (_, start) in enumerate(clips):
+        chain.append(f"[{i + 1}:a]adelay=delays={round(start * 1000)}:all=1[c{i}]")
+    chain.append("".join(f"[c{i}]" for i in range(len(clips))) + f"amix=inputs={len(clips)}:normalize=0,apad[a]")
+    return args + ["-filter_complex", ";".join(chain), "-map", "[v]", "-map", "[a]", "-t", t, *_ENCODE, str(out)]
+
+
+@dataclass(frozen=True)
+class MusicSpan:
+    path: Path
+    start: float  # 영상 전체 기준 시작(초)
+    duration: float
+
+
+def mix_args(video: Path, music: list[MusicSpan], out: Path, music_db: float = -18.0,
+             xfade: float = 2.0) -> list[str]:
+    """음악 구간을 이어 깔고(곡 사이 xfade 초), 말할 때 줄인 뒤 영상 소리와 섞는다. 영상은 다시 인코딩하지 않음."""
+    args = ["-y", "-i", str(video)]
+    for m in music:
+        args += ["-stream_loop", "-1", "-i", str(m.path)]
+    chain = []
+    for i, m in enumerate(music):
+        # 다음 곡과 겹치는 만큼 늘려 둔다 — acrossfade 가 겹친 길이만큼 줄인다
+        length = m.duration + (xfade if len(music) > 1 else 0)
+        chain.append(f"[{i + 1}:a]atrim=0:{length:.3f},asetpts=PTS-STARTPTS[m{i}]")
+    last = "m0"
+    for i in range(1, len(music)):
+        chain.append(f"[{last}][m{i}]acrossfade=d={xfade:.3f}[x{i}]")
+        last = f"x{i}"
+    chain.append(f"[{last}]adelay=delays={round(music[0].start * 1000)}:all=1,volume={music_db:g}dB[mus]")
+    chain.append("[0:a]asplit=2[voice][sc]")
+    chain.append("[mus][sc]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400[duck]")
+    chain.append("[voice][duck]amix=inputs=2:normalize=0:duration=first[a]")
+    return args + ["-filter_complex", ";".join(chain), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+                   "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2", "-movflags", "+faststart", str(out)]
 
 
 def concat_args(list_file: Path, out: Path) -> list[str]:
