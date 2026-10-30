@@ -101,6 +101,50 @@ done
 - [ ] OAuth 클라이언트 ID = **데스크톱 앱** → 토큰 발급 스크립트는 2차에서 만듦 (`channels/youtube`)
 - [ ] 업로드 쿼터 확인 (Cloud Console → API → 할당량)
 
+## 6-4. 클라우드 렌더 준비 (Drive + 텔레그램 + Actions)
+
+> 설계: [cloud-render-ops-design](superpowers/specs/2026-10-30-cloud-render-ops-design.md). 키·토큰은 `.env` 에 직접 입력 — 채팅에 붙여넣지 말 것.
+> "(구현 후)" 표시는 코드가 만들어진 뒤에 하는 단계.
+
+**A. Google Drive 접근 (6-2 의 Google Cloud `moruu` 프로젝트에서)**
+- [ ] (권장) moruu 전용 Google 계정을 쓸지 결정 — 토큰이 그 계정 Drive 전체를 열 수 있음. 전용 계정이면 `moruu` 폴더만 내 계정에 공유해서 봄
+- [ ] API 및 서비스 → 라이브러리 → **Google Drive API** 사용 설정
+- [ ] **Google 인증 플랫폼(OAuth 동의 화면)** → 시작하기: 앱 이름 `moruu`, 지원 이메일 = 본인, 대상 = **외부**
+  - 데이터 액세스 → 범위 추가 → `https://www.googleapis.com/auth/drive` (Google Drive 전체)
+  - 대상 → **앱 게시 → 프로덕션** ("테스트" 상태면 토큰이 7일 뒤 만료). 검증 신청은 안 함 — 로그인 때 "확인되지 않은 앱" 경고 → 고급 → 이동
+- [ ] 클라이언트 → 클라이언트 만들기 → 유형 **데스크톱 앱**, 이름 `moruu-drive`
+  → `.env` 에 `GDRIVE_CLIENT_ID=`, `GDRIVE_CLIENT_SECRET=` 직접 입력
+- [ ] Drive 에 `moruu` 폴더 만들기 → 폴더 열고 주소창 `.../folders/<여기>` 의 ID → `.env` 에 `GDRIVE_ROOT_ID=`
+  (하위 `쇼츠`·`롱폼`·`음악` 폴더는 프로그램이 만든다)
+- [ ] (구현 후) `uv run python -m channels.gdrive.get_token` → 브라우저 로그인·허용 → `.env` 에 `GDRIVE_REFRESH_TOKEN` 이 저장됨 (값은 출력 안 됨)
+- [ ] (구현 후) 확인: `uv run python -m channels.gdrive.get_token --check` → `ok: moruu 폴더 접근됨`
+
+**B. 텔레그램 알림 봇**
+- [ ] 텔레그램 앱 → **@BotFather** 검색 → `/newbot` → 표시 이름(예: `moruu 알림`) → 사용자명(`..._bot` 으로 끝나야 함)
+  → 받은 토큰을 `.env` 에 `TELEGRAM_BOT_TOKEN=` 직접 입력
+- [ ] 만든 봇 대화방을 열고 아무 메시지(예: `안녕`) 보내기 — 봇은 먼저 말을 걸 수 없어서 필요
+- [ ] (구현 후) `uv run python -m channels.telegram --chat-id` → 방금 보낸 대화방 ID 를 `.env` 에 `TELEGRAM_CHAT_ID=` 로 저장
+- [ ] (구현 후) 확인: `uv run python -m channels.telegram "시험 알림"` → 휴대폰에 알림 옴
+
+**C. GitHub 에 올리기**
+- [ ] 로컬 `main` push (`render` 워크플로는 기본 브랜치에 있어야 `Run workflow` 버튼이 보임)
+- [ ] Secrets 등록 — github.com → 저장소 → Settings → Secrets and variables → Actions → New repository secret
+  (또는 gh CLI 설치 후 5번의 반복문에 키 이름만 바꿔서)
+  - 기존: `NOTION_TOKEN` `NOTION_DB_CONTENT` `NOTION_DB_METRICS` `NOTION_DB_FAILURES`
+  - 렌더용: `GOOGLE_TTS_API_KEY` `NOTION_PAGE_LEXICON` (`TTS_RATE`·`TTS_VOICE`·`TTS_VOICE_MALE` 은 바꿨을 때만)
+  - 새로: `GDRIVE_CLIENT_ID` `GDRIVE_CLIENT_SECRET` `GDRIVE_REFRESH_TOKEN` `GDRIVE_ROOT_ID` `TELEGRAM_BOT_TOKEN` `TELEGRAM_CHAT_ID`
+
+**D. 첫 실행 (구현 후)**
+- [ ] Actions → `render` → Run workflow → 할 일 `폴더` → Notion 쇼츠·롱폼 글에 `자료 폴더` 링크가 생기고 텔레그램 알림
+- [ ] 시험 글 자료 폴더에 그림·`출처.txt`, `moruu/음악` 에 곡·`출처.txt` 올리기 → Notion status **APPROVED** (사람)
+- [ ] Run workflow → 할 일 `렌더`, content_id 에 시험 글 ID → 텔레그램 ✅ + Drive 링크로 영상 확인
+- [ ] 걸린 시간 기록 (Actions 실행 화면) → 20분 영상 기준 예상 시간·월 무료 2,000분 안에 드는지 판단:
+  - 시험 결과: ____분 / 영상 ____분
+
+**문제가 생기면**
+- `drive: 401` → 토큰 만료·취소. A 의 get_token 다시 → Secret `GDRIVE_REFRESH_TOKEN` 교체
+- 텔레그램 알림만 안 옴 → 렌더 결과는 Notion·Drive 에서 확인. 봇 토큰·채팅 ID 다시 확인
+
 ## 7. 나중에 (조건 충족 시)
 
 - [ ] 쿠팡 파트너스 최종 승인 → Open API 키 발급 → Step 3
