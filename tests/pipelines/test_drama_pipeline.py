@@ -12,7 +12,7 @@ from pipelines.ai_drama.__main__ import run
 
 LOG = logging.getLogger("test")
 POST = Post("page-1", "YT-롱폼-1", "", "", None, "", None, series="series-1")
-BIBLE = [Table([["인물", "목소리"], ["내레이션", "N"], ["아들", "S"]], True)]
+BIBLE = [Table("t1", [["인물", "목소리"], ["내레이션", "N"], ["아들", "S"]], True)]
 
 
 def rt(text):

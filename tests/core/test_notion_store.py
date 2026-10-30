@@ -167,7 +167,7 @@ def test_tables_reads_all_rows_with_header_flag():
         {"results": [row("인물", "목소리"), row(" 아들 ", "ko-KR-Neural2-C")], "has_more": False},
     ])
     [t] = store.tables("series-1")
-    assert t.header and t.rows == [["인물", "목소리"], ["아들", "ko-KR-Neural2-C"]]
+    assert t.id == "t1" and t.header and t.rows == [["인물", "목소리"], ["아들", "ko-KR-Neural2-C"]]
 
 
 def test_mark_rendered_with_link():
@@ -191,3 +191,62 @@ def test_set_media_folder():
     store, sent = make_store([{}])
     store.set_media_folder(post(), "https://drive/f")
     assert sent[0][2]["properties"] == {"자료 폴더": {"url": "https://drive/f"}}
+
+
+def make_series_store(responses):
+    sent = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        sent.append((req.method, req.url.path, json.loads(req.content or b"{}")))
+        return httpx.Response(200, json=responses.pop(0) if responses else {})
+
+    http = httpx.Client(base_url=API, transport=httpx.MockTransport(handler))
+    return NotionStore("ntn-token", DbIds("db-c", "db-m", "db-f", series="db-s"), http=http), sent
+
+
+def test_approved_plans_filter():
+    store, sent = make_store([{"results": [page("p1", "YT-롱폼-1")], "has_more": False}])
+    assert [p.content_id for p in store.approved_plans()] == ["YT-롱폼-1"]
+    conds = sent[0][2]["filter"]["and"]
+    assert {"property": "status", "select": {"equals": "기획승인"}} in conds
+    assert {"property": "채널", "select": {"equals": "YT-롱폼"}} in conds
+
+
+def test_find_series_by_title():
+    store, sent = make_series_store([{"results": [{"id": "s1"}], "has_more": False}])
+    assert store.find_series("시험 시리즈") == "s1"
+    assert sent[0][1] == "/v1/databases/db-s/query"
+    assert sent[0][2]["filter"] == {"property": "이름", "title": {"equals": "시험 시리즈"}}
+
+
+def test_series_episodes_by_relation():
+    store, sent = make_store([{"results": [page("p1", "YT-롱폼-1")], "has_more": False}])
+    assert [p.content_id for p in store.series_episodes("s1")] == ["YT-롱폼-1"]
+    assert sent[0][2]["filter"] == {"property": "시리즈", "relation": {"contains": "s1"}}
+
+
+def test_create_page_and_append_blocks_in_chunks():
+    store, sent = make_store([{"id": "new-page"}, {"results": [{"id": "b"}] * 100}, {"results": [{"id": "c"}] * 5}])
+    assert store.create_page({"content_id": {"title": []}}, [{"type": "paragraph"}]) == "new-page"
+    assert sent[0][1] == "/v1/pages" and sent[0][2]["parent"] == {"database_id": "db-c"}
+    assert sent[0][2]["children"] == [{"type": "paragraph"}]
+    created = store.append_blocks("blk", [{"type": "paragraph"}] * 105)
+    assert len(created) == 105 and [s[0] for s in sent[1:]] == ["PATCH", "PATCH"]
+    assert len(sent[1][2]["children"]) == 100 and len(sent[2][2]["children"]) == 5
+
+
+def test_add_table_rows():
+    store, sent = make_store([{}])
+    store.add_table_rows("t1", [["며느리", "ko-KR-Neural2-A"]])
+    assert sent[0][1] == "/v1/blocks/t1/children"
+    row = sent[0][2]["children"][0]
+    assert row["type"] == "table_row"
+    assert row["table_row"]["cells"][0] == [{"type": "text", "text": {"content": "며느리"}}]
+
+
+def test_mark_written_sets_draft_and_summary():
+    store, sent = make_store([{}])
+    store.mark_written(post(), "갈등: …")
+    props = sent[0][2]["properties"]
+    assert props["status"] == {"select": {"name": "DRAFT"}}
+    assert props["회차 요약"] == {"rich_text": [{"text": {"content": "갈등: …"}}]}

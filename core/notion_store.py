@@ -18,10 +18,12 @@ class DbIds:
     content: str
     metrics: str
     failures: str
+    series: str = ""  # 📚 시리즈 DB (롱폼 기획이 이름으로 찾음)
 
 
 @dataclass(frozen=True)
 class Table:
+    id: str
     rows: list[list[str]]  # 칸 글자 (앞뒤 공백 제거), 머리글 행 포함
     header: bool  # 첫 행이 머리글
 
@@ -76,6 +78,47 @@ class NotionStore:
     def approved_drama(self) -> list[Post]:
         return self._approved(S.CH_YT_LONG)
 
+    def approved_plans(self) -> list[Post]:
+        """롱폼 중 사람이 기획승인한 것 — 대본을 쓸 차례."""
+        filter_ = {"and": [
+            {"property": S.STATUS, "select": {"equals": S.PLAN_OK}},
+            {"property": S.CHANNEL, "select": {"equals": S.CH_YT_LONG}},
+        ]}
+        pages = self._query(self._dbs.content, filter_, [{"timestamp": "created_time", "direction": "ascending"}])
+        return [parse_post(p) for p in pages]
+
+    def find_series(self, name: str) -> str | None:
+        pages = self._query(self._dbs.series, {"property": S.SERIES_TITLE, "title": {"equals": name}}, [])
+        return pages[0]["id"] if pages else None
+
+    def series_episodes(self, series_id: str) -> list[Post]:
+        pages = self._query(self._dbs.content, {"property": S.SERIES, "relation": {"contains": series_id}},
+                            [{"timestamp": "created_time", "direction": "ascending"}])
+        return [parse_post(p) for p in pages]
+
+    def create_page(self, props: dict, children: list[dict]) -> str:
+        """콘텐츠 DB 에 페이지. children 은 100개까지 (넘으면 append_blocks 로)."""
+        body = {"parent": {"database_id": self._dbs.content}, "properties": props, "children": children[:100]}
+        page_id = self._req("POST", "/v1/pages", body)["id"]
+        if children[100:]:
+            self.append_blocks(page_id, children[100:])
+        return page_id
+
+    def append_blocks(self, block_id: str, children: list[dict]) -> list[dict]:
+        """블록 아래에 붙인다 (API 한 번에 100개씩). 만들어진 블록 목록."""
+        created: list[dict] = []
+        for i in range(0, len(children), 100):
+            data = self._req("PATCH", f"/v1/blocks/{block_id}/children", {"children": children[i:i + 100]})
+            created += data.get("results", [])
+        return created
+
+    def add_table_rows(self, table_id: str, rows: list[list[str]]) -> None:
+        def cell(text: str) -> list[dict]:
+            return [{"type": "text", "text": {"content": text}}] if text else []
+
+        children = [{"type": "table_row", "table_row": {"cells": [cell(c) for c in row]}} for row in rows]
+        self._req("PATCH", f"/v1/blocks/{table_id}/children", {"children": children})
+
     def missing_media_folders(self) -> list[Post]:
         """영상 글(쇼츠·롱폼) 중 DRAFT·APPROVED 인데 자료 폴더가 없는 것."""
         def any_of(prop: str, values: list[str]) -> dict:
@@ -106,7 +149,7 @@ class NotionStore:
             return "".join(r.get("plain_text", "") for r in c).strip()
 
         return [
-            Table([[cell(c) for c in row.get("table_row", {}).get("cells", [])] for row in self.page_blocks(t["id"])],
+            Table(t["id"], [[cell(c) for c in row.get("table_row", {}).get("cells", [])] for row in self.page_blocks(t["id"])],
                   bool(t["table"].get("has_column_header")))
             for t in self.page_blocks(page_id) if t.get("type") == "table"
         ]
@@ -146,6 +189,10 @@ class NotionStore:
         if link:
             props[S.VIDEO_LINK] = S.url(link)
         self._update(post.page_id, props)
+
+    def mark_written(self, post: Post, summary: str) -> None:
+        """대본 작성 끝 → DRAFT (사람이 검토 후 APPROVED)."""
+        self._update(post.page_id, {S.STATUS: S.select(S.DRAFT), S.EPISODE_SUMMARY: S.rich(summary), S.ERROR: {"rich_text": []}})
 
     def set_media_folder(self, post: Post, url: str) -> None:
         self._update(post.page_id, {S.MEDIA_FOLDER: S.url(url)})

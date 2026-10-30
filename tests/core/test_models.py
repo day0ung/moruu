@@ -67,3 +67,8 @@ def test_channel_and_media_folder():
     p = parse_post(sample_page(**{"채널": {"select": {"name": "YT-롱폼"}}, "자료 폴더": {"url": "https://d/f"}}))
     assert (p.channel, p.media_folder) == ("YT-롱폼", "https://d/f")
     assert parse_post(sample_page(**{"자료 폴더": {"url": None}})).media_folder == ""
+
+
+def test_episode_summary():
+    p = parse_post(sample_page(**{"회차 요약": {"rich_text": [{"plain_text": "갈등: 상속"}]}}))
+    assert p.summary == "갈등: 상속"

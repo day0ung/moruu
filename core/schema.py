@@ -19,12 +19,15 @@ ERROR = "오류"
 VOICE = "목소리"  # 영상 기본 목소리: 여 / 남 (비우면 여)
 SERIES = "시리즈"  # 롱폼: 시리즈 DB 연결
 VIDEO_LINK = "영상 링크"  # 렌더 결과 주소
+EPISODE_SUMMARY = "회차 요약"  # 롱폼: 갈등·결말·반전 3줄 (다음 기획이 반복을 피하려고 읽음)
 MEDIA_FOLDER = "자료 폴더"  # Drive 자료 폴더 주소 (media_folders 가 채움)
 COLLECTED = {24: "수집_24h", 72: "수집_72h", 168: "수집_7d"}
 
 CH_THREADS = "Threads"
 CH_YT_SHOP = "YT-쇼핑"
 CH_YT_LONG = "YT-롱폼"
+PLAN = "기획"  # 롱폼: AI 기획안 (사람이 하나를 기획승인으로)
+PLAN_OK = "기획승인"
 DRAFT = "DRAFT"
 APPROVED = "APPROVED"
 POSTING = "POSTING"
@@ -81,3 +84,10 @@ def checkbox(value: bool) -> dict:
 
 def url(value: str) -> dict:
     return {"url": value}
+
+
+def relation(page_ids: list[str]) -> dict:
+    return {"relation": [{"id": i} for i in page_ids]}
+
+
+SERIES_TITLE = "이름"  # 시리즈 DB 제목 속성

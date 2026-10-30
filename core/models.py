@@ -25,6 +25,7 @@ class Post:
     series: str = ""  # 롱폼: 연결된 시리즈 페이지 ID
     channel: str = ""
     media_folder: str = ""  # Drive 자료 폴더 주소
+    summary: str = ""  # 롱폼 회차 요약
 
 
 def _plain(prop: dict) -> str:
@@ -66,4 +67,5 @@ def parse_post(page: dict) -> Post:
         series=next((r["id"] for r in get(S.SERIES).get("relation") or []), ""),
         channel=_select(get(S.CHANNEL)),
         media_folder=get(S.MEDIA_FOLDER).get("url") or "",
+        summary=_plain(get(S.EPISODE_SUMMARY)),
     )
