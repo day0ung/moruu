@@ -49,7 +49,12 @@ def run_plan(store, llm, series_name: str, topic: str, log: logging.Logger, noti
         log.error("시리즈 '%s' 없음 (📚 시리즈 DB 의 이름)", series_name)
         return 1
     series = load_series(store, series_id)
-    plans = agents.plan(llm, series, topic, count=count, minutes=minutes)
+    try:
+        plans = agents.plan(llm, series, topic, count=count, minutes=minutes)
+    except LLMError as e:
+        log.error("기획 실패: %s", e)
+        notify(f"❌ 기획 실패 · {series_name}: {str(e)[:300]}")
+        return 1
     if not plans:
         notify(f"❌ 기획 실패 · {series_name}: 기획안을 못 받음")
         return 1

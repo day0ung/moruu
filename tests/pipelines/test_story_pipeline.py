@@ -142,3 +142,15 @@ def test_missing_series_or_plan_marks_failed():
     store.blocks["page-1"] = []
     assert run_write(store, FakeLLM(), LOG, print) == 1
     assert store.failed == [("YT-롱폼-1", f"story: '{PLAN_TOGGLE}' 토글 없음")]
+
+
+def test_plan_llm_error_is_reported_not_raised():
+    from channels.llm.client import LLMError
+
+    class Broken(FakeLLM):
+        def chat_json(self, messages, role):
+            raise LLMError("gemini/x: 403 free tier is not available")
+
+    sent = []
+    assert run_plan(Store(), Broken(), "시험 시리즈", "", LOG, sent.append, datetime.now(KST)) == 1
+    assert sent == ["❌ 기획 실패 · 시험 시리즈: gemini/x: 403 free tier is not available"]

@@ -92,3 +92,12 @@ def test_extract_json_variants():
     assert extract_json('```json\n[1, 2]\n```') == [1, 2]
     with pytest.raises(ValueError):
         extract_json("없음")
+
+
+def test_error_message_from_list_body():
+    def handler(req):
+        return httpx.Response(403, json=[{"error": {"code": 403, "message": "free tier is not available"}}])
+
+    with pytest.raises(LLMError) as e:
+        make(handler).chat([{"role": "user", "content": "x"}], "light")
+    assert "free tier is not available" in str(e.value)

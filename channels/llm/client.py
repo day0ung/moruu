@@ -61,11 +61,12 @@ def extract_json(text: str):
 
 def _message(r: httpx.Response) -> str:
     try:
-        err = r.json().get("error")
-    except (ValueError, AttributeError):
-        err = None
-    if isinstance(err, list) and err:
-        err = err[0]
+        body = r.json()
+    except ValueError:
+        body = None
+    if isinstance(body, list) and body:  # Gemini 는 [{"error": …}] 로 줄 때가 있다
+        body = body[0]
+    err = body.get("error") if isinstance(body, dict) else None
     if isinstance(err, dict):
         return str(err.get("message") or err)
     return str(err or r.reason_phrase)
