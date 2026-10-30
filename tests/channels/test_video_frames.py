@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from channels.video.frames import (
-    H, W, YELLOW, FontError, Span, caption_png, card_png, cover_png, find_font, subtitle_png,
+    H, W, YELLOW, FontError, Span, caption_png, card_png, cover_png, find_font, hex_rgb, subtitle_png,
 )
 
 try:
@@ -80,3 +80,25 @@ def test_words_keep_emphasis_inside_one_word():
     words = _words([Span("제품 정보는 "), Span("프로필 링크", True), Span("에서")])
     assert ["".join(p.text for p in w).strip() for w in words] == ["제품", "정보는", "프로필", "링크에서"]
     assert [p.strong for p in words[-1]] == [True, False]
+
+
+def test_hex_rgb():
+    assert hex_rgb("#FFD400") == (255, 212, 0)
+    assert hex_rgb("#7fd3ff") == (127, 211, 255)
+
+
+@needs_font
+def test_subtitle_png_landscape_colored(tmp_path):
+    out = subtitle_png("너희 이번 주말에 올 거니?", tmp_path / "s.png", FONT, center_y=960, size=56,
+                       color=(255, 212, 0), canvas=(1920, 1080))
+    with Image.open(out) as img:
+        assert img.size == (1920, 1080)
+        found = {c for _, c in img.getcolors(1920 * 1080)}
+    assert any(c[:3] == (255, 212, 0) and c[3] == 255 for c in found)
+
+
+def test_cover_png_landscape(tmp_path):
+    buf = io.BytesIO()
+    Image.new("RGB", (800, 800), (10, 20, 30)).save(buf, "PNG")
+    with Image.open(cover_png(buf.getvalue(), tmp_path / "c.png", canvas=(1920, 1080))) as img:
+        assert img.size == (1920, 1080)

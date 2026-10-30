@@ -49,6 +49,11 @@ def find_font(env: Mapping[str, str] = os.environ) -> Path:
     raise FontError("한글 폰트 없음 — MORUU_FONT 에 .ttf 경로를 넣거나 assets/fonts/ 에 폰트를 둘 것")
 
 
+def hex_rgb(code: str) -> tuple[int, int, int]:
+    code = code.lstrip("#")
+    return int(code[0:2], 16), int(code[2:4], 16), int(code[4:6], 16)
+
+
 def _words(spans: list[Span]) -> list[list[Span]]:
     """띄어쓰기 단위 단어. "프로필 **링크**에서" 처럼 강조가 단어 중간에 끝나도 한 단어로 묶는다."""
     words: list[list[Span]] = [[]]
@@ -75,12 +80,12 @@ def _wrap(spans: list[Span], font: ImageFont.FreeTypeFont, max_w: int) -> list[l
 
 
 def _draw_lines(draw: ImageDraw.ImageDraw, lines: list[list[Span]], font: ImageFont.FreeTypeFont,
-                center_y: int, stroke: int, fill=WHITE, line_gap: float = 1.25) -> None:
+                center_y: int, stroke: int, fill=WHITE, line_gap: float = 1.25, width: int = W) -> None:
     size = font.size
     top = center_y - (len(lines) * size * line_gap) / 2
     for i, line in enumerate(lines):
         line[-1] = Span(line[-1].text.rstrip(), line[-1].strong)
-        x = (W - sum(font.getlength(p.text) for p in line)) / 2
+        x = (width - sum(font.getlength(p.text) for p in line)) / 2
         y = top + i * size * line_gap
         for p in line:
             draw.text((x, y), p.text, font=font, fill=YELLOW if p.strong else fill,
@@ -109,11 +114,14 @@ def caption_png(spans: list[Span], out: Path, font_path: Path, center_y: int = 3
     return out
 
 
-def subtitle_png(text: str, out: Path, font_path: Path, center_y: int = 1420, size: int = 64) -> Path:
-    """내레이션 자막 — 하단, 흰 글씨 + 검은 외곽선."""
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+def subtitle_png(text: str, out: Path, font_path: Path, center_y: int = 1420, size: int = 64,
+                 color: tuple[int, int, int] = WHITE, canvas: tuple[int, int] = (W, H)) -> Path:
+    """대사 자막 — 하단, 색 글씨 + 검은 외곽선. canvas: 화면 크기 (기본 세로 쇼츠)."""
+    cw, ch = canvas
+    img = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
     font = ImageFont.truetype(str(font_path), size)
-    _draw_lines(ImageDraw.Draw(img), _wrap([Span(text)], font, W - 160), font, center_y, stroke=6)
+    _draw_lines(ImageDraw.Draw(img), _wrap([Span(text)], font, cw - 160), font, center_y, stroke=6,
+                fill=color, width=cw)
     img.save(out)
     return out
 
@@ -130,9 +138,9 @@ def card_png(out: Path, font_path: Path | None = None, notes: list[str] = ()) ->
     return out
 
 
-def cover_png(data: bytes, out: Path) -> Path:
-    """올린 이미지를 세로 화면에 꽉 차게 가운데 잘라 저장."""
+def cover_png(data: bytes, out: Path, canvas: tuple[int, int] = (W, H)) -> Path:
+    """올린 이미지를 화면에 꽉 차게 가운데 잘라 저장."""
     with Image.open(io.BytesIO(data)) as src:
-        img = ImageOps.fit(ImageOps.exif_transpose(src).convert("RGB"), (W, H), Image.LANCZOS)
+        img = ImageOps.fit(ImageOps.exif_transpose(src).convert("RGB"), canvas, Image.LANCZOS)
     img.save(out)
     return out
