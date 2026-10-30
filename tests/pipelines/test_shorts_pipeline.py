@@ -21,7 +21,7 @@ LOG = logging.getLogger("test")
 class Store:
     def __init__(self, posts, blocks):
         self.posts, self.blocks = posts, blocks
-        self.failed, self.rendered = [], []
+        self.failed, self.rendered, self.links = [], [], []
 
     def approved_shorts(self):
         return list(self.posts)
@@ -32,8 +32,9 @@ class Store:
     def mark_failed(self, post, error):
         self.failed.append((post.content_id, error))
 
-    def mark_rendered(self, post):
+    def mark_rendered(self, post, link=None):
         self.rendered.append(post.content_id)
+        self.links.append(link)
 
 
 def test_valid_page_rendered(tmp_path):
@@ -78,6 +79,46 @@ def test_dry_run_and_content_id_filter_touch_nothing(tmp_path):
     store = Store([POST, replace(POST, content_id="YT-2")], [quote("필수템")])
     assert run(store, lambda p, s: pytest.fail("렌더 X"), LOG, dry_run=True, content_id="YT-2", assets=tmp_path) == 0
     assert store.failed == [] and store.rendered == []
+
+
+def test_upload_link_and_notify(tmp_path):
+    sent = []
+    store = Store([POST], BLOCKS)
+    assert run(store, lambda p, s: Path("x.mp4"), LOG, assets=tmp_path,
+               uploader=lambda p, path: "https://drive/v", notifier=sent.append) == 0
+    assert store.links == ["https://drive/v"]
+    assert sent == ["✅ YT-틈새솔-1 렌더 완료 · https://drive/v"]
+
+
+def test_upload_error_marks_failed(tmp_path):
+    def upload(p, path):
+        raise OSError("disk")
+
+    sent = []
+    store = Store([POST], BLOCKS)
+    assert run(store, lambda p, s: Path("x.mp4"), LOG, assets=tmp_path, uploader=upload, notifier=sent.append) == 1
+    assert store.failed == [("YT-틈새솔-1", "upload: disk")] and sent[0].startswith("❌ YT-틈새솔-1 실패 · upload: disk")
+
+
+def test_fetch_media_error_marks_failed_without_render(tmp_path):
+    from channels.gdrive.client import DriveError
+
+    def fetch(post):
+        raise DriveError(403, "x")
+
+    store = Store([POST], BLOCKS)
+    assert run(store, lambda p, s: pytest.fail("렌더 X"), LOG, assets=tmp_path, fetch_media=fetch) == 1
+    assert store.failed == [("YT-틈새솔-1", "drive: [403] x")]
+
+
+def test_fetch_media_runs_before_folder_check(tmp_path):
+    def fetch(post):
+        (tmp_path / post.content_id).mkdir()
+        (tmp_path / post.content_id / "02.png").write_bytes(b"x")
+
+    store = Store([POST], BLOCKS)
+    run(store, lambda p, s: pytest.fail("렌더 X"), LOG, assets=tmp_path, fetch_media=fetch)
+    assert store.failed == [("YT-틈새솔-1", "컷 2: 02.png 출처 없음 — 출처.txt 에 적기")]
 
 
 try:

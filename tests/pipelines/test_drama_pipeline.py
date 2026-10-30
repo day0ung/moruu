@@ -123,3 +123,14 @@ def test_dry_run_touches_nothing(media):
     store = Store([POST, replace(POST, content_id="YT-롱폼-9")])
     assert run(store, None, lambda *a: pytest.fail("X"), LOG, dry_run=True, content_id="YT-롱폼-1", **media) == 0
     assert store.failed == [] and store.rendered == []
+
+
+def test_fetch_media_error(media):
+    from channels.gdrive.client import DriveError
+
+    def fetch(post):
+        raise DriveError(403, "x")
+
+    store = Store([POST])
+    assert run(store, lambda *a: pytest.fail("X"), lambda *a: pytest.fail("X"), LOG, fetch_media=fetch, **media) == 1
+    assert store.failed == [("YT-롱폼-1", "drive: [403] x")]
