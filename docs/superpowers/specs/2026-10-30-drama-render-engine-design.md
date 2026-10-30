@@ -1,6 +1,7 @@
 # 시니어 AI 드라마 렌더 엔진 설계
 
-날짜: 2026-10-30 · 범위: 롱폼 파이프라인 [4] 편집 + [3] 중 TTS·배경음악 + 렌더 결과 Google Drive 업로드
+날짜: 2026-10-30 · 범위: 롱폼 파이프라인 [4] 편집 + [3] 중 TTS·배경음악. 로컬에서 완성한다.
+Actions 실행·Drive 입출력·텔레그램 알림은 `2026-10-30-cloud-render-ops-design.md`가 다룬다.
 
 ## 목표
 
@@ -22,7 +23,7 @@ Notion에 쓴 에피소드 대본(내레이션 + 인물 대사)과 장면 그림
 | 배경음악 | 장면 제목 태그 `#음악 잔잔`. 태그 없으면 앞 곡 이어 감. 말할 때 줄이고, 곡이 바뀌면 서서히 |
 | 자막 | 한 줄, 화면 아래, 인물마다 색 |
 | 구조 | 대본 → `timeline.json` → 렌더 (줄 단위 TTS 캐시, 장면 조각 캐시) |
-| 결과 보관 | Google Drive `moruu/롱폼/{content_id}/`에 업로드, Notion `영상 링크`에 기록 |
+| 결과 보관 | 로컬 `out/drama/`. Drive 업로드는 운영 설계에서 `Uploader`를 주입해 붙인다 |
 
 ## 1. Notion 구조와 대본 형식
 
@@ -98,7 +99,7 @@ Notion ─▶ pipelines/ai_drama/script.py   본문 + 바이블 → Episode
         channels/video/render.py        Timeline → 장면 조각 → 이어 붙이기 → 음악 섞기
                 │
                 ▼
-        out/drama/{id}.mp4 · .srt · .timeline.json ──▶ channels/gdrive 업로드
+        out/drama/{id}.mp4 · .srt · .timeline.json ──▶ (운영 설계) Drive 업로드
 ```
 
 ### 공통 (`channels/`, `core/`)
@@ -129,12 +130,6 @@ Notion ─▶ pipelines/ai_drama/script.py   본문 + 바이블 → Episode
   - `subtitle_png`, `cover_png`, `card_png`에 `size=(1080, 1920)` 기본 인자를 둔다. 기본값이 그대로라 쇼츠 동작은 바뀌지 않는다.
   - `subtitle_png`에 `color=WHITE` 인자를 추가한다.
 - `channels/video/ffmpeg.py`: `segment_args`가 여러 음성 입력, 화면 크기, 어두워졌다 밝아지는 전환을 받도록 넓힌다. 쇼츠 호출 형태는 유지한다.
-- `channels/gdrive/` (새 패키지)
-  - `client.py`
-    - `DriveClient.ensure_folder(path) -> id`: 폴더 경로를 찾거나 만든다.
-    - `DriveClient.upload(file, folder_id) -> url`: 이어 올리기(resumable) 방식이다. 같은 이름 파일이 있으면 새 버전으로 덮어쓴다.
-  - `get_token.py`: 설치형 앱 OAuth로 로그인해 refresh token을 `.env`에 쓴다. 권한 범위는 `https://www.googleapis.com/auth/drive.file`이다.
-  - `.env` 키: `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN`. 값은 출력하거나 로그에 남기지 않는다.
 - `core/notion_store.py`
   - `tables(page_id) -> list[list[list[str]]]`: 페이지의 표들을 글자 칸 목록으로 돌려준다. 머리글 줄도 포함한다. `lexicon()`도 이걸 쓰도록 바꾼다.
   - `approved_drama()`: 렌더할 페이지를 찾는다.
@@ -143,7 +138,6 @@ Notion ─▶ pipelines/ai_drama/script.py   본문 + 바이블 → Episode
 - `core/config.py`: `DramaSettings`
   - 출력 `out/drama`, 그림 `assets/longform`, 음악 `assets/music`, 캐시 `.cache/tts`
   - `LINE_MAX=24`, `GAP=0.4`, `SCENE_TAIL=1.0`, `MUSIC_DB=-18`
-  - Drive 폴더 `moruu/롱폼`
 
 ### 드라마 파이프라인 (`pipelines/ai_drama/`, 새 패키지)
 - `bible.py`: 표 칸 목록 → `Bible{이름: Character(voice, pitch, rate, color)}` + 문제 목록
@@ -152,7 +146,8 @@ Notion ─▶ pipelines/ai_drama/script.py   본문 + 바이블 → Episode
   - `script_problems`: 렌더 전 검사를 한다.
 - `build.py`: `build_timeline(episode, bible, tts, lexicon, work, settings) -> Timeline`
 - `__main__.py`
-  - 실행: `python -m pipelines.ai_drama [--dry-run] [--content-id ID] [--no-upload]`
+  - 실행: `python -m pipelines.ai_drama [--dry-run] [--content-id ID]`. `--from-drive`, `--no-upload`는 운영 설계에서 추가한다.
+  - `run(store, make_video, log, ..., uploader=None, notifier=None)`: 업로드·알림을 주입받을 자리를 처음부터 둔다. 둘 다 없으면 로컬에만 저장한다.
   - pipelines끼리 import하지 않는다. 쇼츠와 겹치는 코드는 `channels/`, `core/`에만 둔다.
 
 ## 3. 흐름
@@ -178,8 +173,8 @@ Notion ─▶ pipelines/ai_drama/script.py   본문 + 바이블 → Episode
 1. 채널 `YT-롱폼` + status APPROVED인 페이지를 찾는다(`--content-id`로 하나만 고를 수 있다).
 2. 시리즈 바이블, 본문, 발음 사전을 읽고 폴더를 붙인 뒤 검사한다.
 3. 타임라인을 만들고 렌더한다.
-4. Drive에 `.mp4`와 `.srt`를 올린다. `--no-upload`면 건너뛴다.
-5. `mark_rendered(post, link)`로 상태를 RENDERED로 바꾸고 `영상 링크`를 적는다.
+4. `uploader`가 있으면 `.mp4`와 `.srt`를 올린다(운영 설계).
+5. `mark_rendered(post, link)`로 상태를 RENDERED로 바꾸고, 링크가 있으면 `영상 링크`에 적는다.
 
 ## 4. 오류 처리
 
@@ -191,7 +186,7 @@ Notion ─▶ pipelines/ai_drama/script.py   본문 + 바이블 → Episode
 | TTS (`TTSError`, 네트워크) | `tts: …`. 성공한 줄은 캐시에 남아 다음 실행 때 이어서 진행한다 |
 | ffmpeg (`VideoError`) | `render: 장면 N: …` (ffmpeg 출력 끝부분) |
 | 글꼴·파일 (`FontError`, `OSError`) | `render: …` |
-| Drive 업로드 | `upload: …`. 로컬 파일은 남는다. 다시 실행하면 TTS와 장면 조각은 캐시를 쓰므로 음악 섞기와 업로드만 다시 한다 |
+| 업로드 (uploader가 있을 때) | `upload: …`. 로컬 파일은 남는다. 다시 실행하면 TTS와 장면 조각은 캐시를 쓰므로 음악 섞기와 업로드만 다시 한다 |
 
 키·토큰 값은 오류 메시지와 로그에 넣지 않는다. HTTP 오류는 상태 코드와 응답 본문의 오류 메시지만 남긴다.
 
@@ -216,9 +211,8 @@ TDD로 진행한다. TTS·Notion·Drive는 가짜 객체로 바꾼다.
   - `.srt` 전체 시각
   - 실제 ffmpeg로 2초짜리 장면 2개 + 음악 1곡을 렌더해 길이를 확인하는 통합 테스트 1개
 - **`frames.py`:** 가로 크기 PNG, 자막 색. 기존 쇼츠 테스트는 그대로 통과
-- **`gdrive`:** `httpx.MockTransport`로 폴더 찾기·만들기, 이어 올리기, 링크 반환, 오류 메시지에 토큰이 없음
 - **`notion_store`:** `tables()`, `lexicon()` 회귀, `series_of`, `mark_rendered` 링크
-- **`__main__`:** dry-run은 상태를 바꾸지 않음, 검사 실패 → FAILED, 업로드 실패 → FAILED `upload:`, `--no-upload` → RENDERED
+- **`__main__`:** dry-run은 상태를 바꾸지 않음, 검사 실패 → FAILED, 가짜 uploader 실패 → FAILED `upload:`, uploader 없음 → RENDERED(링크 없음)
 - **실제 확인:** Notion에 장면 3개짜리 시험 시리즈·에피소드를 만들어 렌더하고, 프레임을 뽑아 자막 색·한 줄 자막·전환을 확인한다. 음악 줄이기는 직접 들어 본다.
 
 ## 나중 작업 (이 설계가 막지 않음)
@@ -227,3 +221,4 @@ TDD로 진행한다. TTS·Notion·Drive는 가짜 객체로 바꾼다.
 - 효과음 `[효과 X]`: `Clip`에 효과음 종류를 추가한다.
 - 쇼츠를 `Timeline` + `render`로 옮긴다.
 - [5] YouTube 업로드: Drive의 파일을 비공개로 올리고 `containsSyntheticMedia=true`를 설정한다.
+- 미디어 폴더를 Drive에서 받기: 운영 설계의 `--from-drive`가 `assets/…`로 받아 오므로 엔진은 로컬 폴더만 안다.
