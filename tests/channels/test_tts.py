@@ -134,3 +134,17 @@ def test_line_cues_without_timings_split_by_length():
     from channels.tts.srt import Cue, line_cues
     lines = [Line("가나다", (Part("가나다"),)), Line("라", (Part("라"),))]
     assert line_cues(lines, [], 2.0) == [Cue(0.0, 1.5, "가나다"), Cue(1.5, 2.0, "라")]
+
+
+def test_synthesize_parts_sends_pitch_only_when_set():
+    sent = []
+
+    def handler(req):
+        sent.append(json.loads(req.content)["audioConfig"])
+        return httpx.Response(200, json={"audioContent": base64.b64encode(b"MP3").decode(), "timepoints": []})
+
+    tts = make(handler)
+    tts.synthesize_parts([Part("가")], "ko-KR-Neural2-A")
+    tts.synthesize_parts([Part("가")], "ko-KR-Neural2-A", 0.9, -4.0)
+    assert sent == [{"audioEncoding": "MP3", "speakingRate": 1.0},
+                    {"audioEncoding": "MP3", "speakingRate": 0.9, "pitch": -4.0}]

@@ -69,14 +69,17 @@ class GoogleTTS:
         """단어마다 시각."""
         return self.synthesize_parts([Part(w) for w in text.split()], voice, rate)
 
-    def synthesize_parts(self, parts: list[Part], voice: str, rate: float = 1.0) -> Speech:
-        """조각마다 시각 (words[i] = parts[i]). 시각이 하나라도 빠지면 words 는 빈 목록."""
+    def synthesize_parts(self, parts: list[Part], voice: str, rate: float = 1.0, pitch: float = 0.0) -> Speech:
+        """조각마다 시각 (words[i] = parts[i]). 시각이 하나라도 빠지면 words 는 빈 목록. pitch: 반음."""
         if not any(p.text.strip() for p in parts):
             raise ValueError("빈 대본")
+        audio = {"audioEncoding": "MP3", "speakingRate": rate}
+        if pitch:
+            audio["pitch"] = pitch
         body = {
             "input": {"ssml": build_ssml(parts)},
             "voice": {"languageCode": "-".join(voice.split("-")[:2]), "name": voice},
-            "audioConfig": {"audioEncoding": "MP3", "speakingRate": rate},
+            "audioConfig": audio,
             "enableTimePointing": ["SSML_MARK"],
         }
         r = self._http.post("/v1beta1/text:synthesize", json=body, headers=self._headers)
