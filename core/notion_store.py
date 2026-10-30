@@ -104,13 +104,26 @@ class NotionStore:
             self.append_blocks(page_id, children[100:])
         return page_id
 
-    def append_blocks(self, block_id: str, children: list[dict]) -> list[dict]:
-        """블록 아래에 붙인다 (API 한 번에 100개씩). 만들어진 블록 목록."""
+    def append_blocks(self, block_id: str, children: list[dict], after: str | None = None) -> list[dict]:
+        """블록 아래에 붙인다 (API 한 번에 100개씩). after: 그 블록 바로 뒤에 끼워 넣기. 만들어진 블록 목록."""
         created: list[dict] = []
         for i in range(0, len(children), 100):
-            data = self._req("PATCH", f"/v1/blocks/{block_id}/children", {"children": children[i:i + 100]})
-            created += data.get("results", [])
+            body: dict = {"children": children[i:i + 100]}
+            if after:
+                body["after"] = after
+            results = self._req("PATCH", f"/v1/blocks/{block_id}/children", body).get("results", [])
+            if after:  # 끼워 넣으면 응답은 부모의 전체 목록 — 새로 넣은 것만 골라 다음 끼워 넣기 기준으로
+                start = next((j + 1 for j, b in enumerate(results) if b.get("id") == after), 0)
+                results = results[start:start + len(body["children"])]
+                after = results[-1]["id"] if results else after
+            created += results
         return created
+
+    def create_child_page(self, parent_page_id: str, title: str, children: list[dict]) -> str:
+        """일반 페이지 아래에 하위 페이지 (DB 밖). 페이지 ID."""
+        body = {"parent": {"page_id": parent_page_id},
+                "properties": {"title": {"title": [{"text": {"content": title}}]}}, "children": children[:100]}
+        return self._req("POST", "/v1/pages", body)["id"]
 
     def add_table_rows(self, table_id: str, rows: list[list[str]]) -> None:
         def cell(text: str) -> list[dict]:

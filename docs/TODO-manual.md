@@ -156,7 +156,7 @@ done
 - [ ] 첫 기획: `uv run python -m pipelines.ai_story plan --series "시험 시리즈" --topic "명절에 오지 않는 아들"` → Notion 에 기획 3개
 - [ ] 하나를 읽고 고친 뒤 status → **기획승인** → `uv run python -m pipelines.ai_story write` → 대본·검수 기록 확인
 - [ ] 한국어 품질 비교 (선택): `.env` 에 `GEMINI_MODEL_WRITE=` 를 다른 모델로 바꿔 같은 기획으로 한 챕터씩 써 보고 비교
-- [ ] GitHub Secrets 추가: `NOTION_DB_SERIES` `GEMINI_API_KEY` (+ `OPENROUTER_API_KEY`, `LLM_PROVIDERS`·`STORY_MUSIC_TAGS` 는 바꿀 때만)
+- [ ] GitHub Secrets 추가: `NOTION_DB_SERIES` `NOTION_PAGE_LONGFORM` `GEMINI_API_KEY` (+ `OPENROUTER_API_KEY`, `LLM_PROVIDERS`·`STORY_MUSIC_TAGS` 는 바꿀 때만)
 - [ ] 음악 태그 기본값 `잔잔, 슬픔, 긴장, 따뜻함` → Drive `moruu/음악/` 에 같은 이름 파일 준비 (다른 이름이면 `STORY_MUSIC_TAGS`)
 
 ## 7. 나중에 (조건 충족 시)

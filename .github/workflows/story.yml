@@ -39,6 +39,7 @@ jobs:
       NOTION_DB_METRICS: ${{ secrets.NOTION_DB_METRICS }}
       NOTION_DB_FAILURES: ${{ secrets.NOTION_DB_FAILURES }}
       NOTION_DB_SERIES: ${{ secrets.NOTION_DB_SERIES }}
+      NOTION_PAGE_LONGFORM: ${{ secrets.NOTION_PAGE_LONGFORM }}
       LLM_PROVIDERS: ${{ secrets.LLM_PROVIDERS }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
