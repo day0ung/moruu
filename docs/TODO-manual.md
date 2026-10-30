@@ -145,6 +145,20 @@ done
 - `drive: 401` → 토큰 만료·취소. A 의 get_token 다시 → Secret `GDRIVE_REFRESH_TOKEN` 교체
 - 텔레그램 알림만 안 옴 → 렌더 결과는 Notion·Drive 에서 확인. 봇 토큰·채팅 ID 다시 확인
 
+## 6-5. 롱폼 AI 대본 (기획 → 대본)
+
+> 조사: [free-llm-compare](research/free-llm-compare.md). 무료로 시작 — 무료 등급은 보낸 글이 Google 제품 개선에 쓰일 수 있음(창작 대본이라 감수).
+
+- [ ] https://aistudio.google.com → Get API key → 6-2 의 `moruu` 프로젝트로 키 만들기 → `.env` 에 `GEMINI_API_KEY=` 직접 입력
+  - AI Studio → 사용량·한도 화면에서 `gemini-3.8-flash` 무료 한도(RPM·RPD) 확인 → 여기에 기록: ____
+- [ ] (선택, 대체용) https://openrouter.ai → Keys → `.env` 에 `OPENROUTER_API_KEY=` (무료 모델 하루 50회, 계정 설정에서 무료 모델 데이터 정책 확인)
+- [ ] `.env` 에 `NOTION_DB_SERIES=87c3779468294b11b0956d3564e4d23e` (Claude 가 이미 넣음 — 확인만)
+- [ ] 첫 기획: `uv run python -m pipelines.ai_story plan --series "시험 시리즈" --topic "명절에 오지 않는 아들"` → Notion 에 기획 3개
+- [ ] 하나를 읽고 고친 뒤 status → **기획승인** → `uv run python -m pipelines.ai_story write` → 대본·검수 기록 확인
+- [ ] 한국어 품질 비교 (선택): `.env` 에 `GEMINI_MODEL_WRITE=` 를 다른 모델로 바꿔 같은 기획으로 한 챕터씩 써 보고 비교
+- [ ] GitHub Secrets 추가: `NOTION_DB_SERIES` `GEMINI_API_KEY` (+ `OPENROUTER_API_KEY`, `LLM_PROVIDERS`·`STORY_MUSIC_TAGS` 는 바꿀 때만)
+- [ ] 음악 태그 기본값 `잔잔, 슬픔, 긴장, 따뜻함` → Drive `moruu/음악/` 에 같은 이름 파일 준비 (다른 이름이면 `STORY_MUSIC_TAGS`)
+
 ## 7. 나중에 (조건 충족 시)
 
 - [ ] 쿠팡 파트너스 최종 승인 → Open API 키 발급 → Step 3

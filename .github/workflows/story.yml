@@ -1,0 +1,63 @@
+name: story
+
+# 롱폼 대본 AI — 수동 실행만. 기획: 기획안 3개 → Notion (status=기획). 대본: status=기획승인 글 → DRAFT.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "기획 / 대본"
+        default: 기획
+        type: choice
+        options: [기획, 대본]
+      series:
+        description: "기획: 📚 시리즈 이름"
+        default: ""
+        type: string
+      topic:
+        description: "기획: 소재 한 줄 (비우면 자유)"
+        default: ""
+        type: string
+      content_id:
+        description: "대본: 비우면 기획승인 전부"
+        default: ""
+        type: string
+
+concurrency:
+  group: story
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DB_CONTENT: ${{ secrets.NOTION_DB_CONTENT }}
+      NOTION_DB_METRICS: ${{ secrets.NOTION_DB_METRICS }}
+      NOTION_DB_FAILURES: ${{ secrets.NOTION_DB_FAILURES }}
+      NOTION_DB_SERIES: ${{ secrets.NOTION_DB_SERIES }}
+      LLM_PROVIDERS: ${{ secrets.LLM_PROVIDERS }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      STORY_MUSIC_TAGS: ${{ secrets.STORY_MUSIC_TAGS }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      INPUT_TASK: ${{ inputs.task }}
+      INPUT_SERIES: ${{ inputs.series }}
+      INPUT_TOPIC: ${{ inputs.topic }}
+      INPUT_ID: ${{ inputs.content_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - name: 기획
+        if: env.INPUT_TASK == '기획'
+        run: uv run python -m pipelines.ai_story plan --series "$INPUT_SERIES" --topic "$INPUT_TOPIC"
+      - name: 대본
+        if: env.INPUT_TASK == '대본'
+        run: |
+          if [ -n "$INPUT_ID" ]; then uv run python -m pipelines.ai_story write --content-id "$INPUT_ID"
+          else uv run python -m pipelines.ai_story write; fi
