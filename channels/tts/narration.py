@@ -19,6 +19,7 @@ from channels.tts.google import Part
 _TOKEN = re.compile(r"\{([^{}|]*)\|([^{}]*)\}|\[쉼\s*(\d+(?:\.\d+)?)\]")
 _BAD_READING = re.compile(r"[{}|]")
 _BAD_PAUSE = re.compile(r"\[쉼")
+_BRACKET = re.compile(r"[\[\]]")  # [쉼] 오타([쉬 0.5] 등)가 그대로 읽히지 않게
 _STOP = ",.?!…~"
 _STOP_BONUS = 3  # 쉼표·마침표 뒤를 이만큼 가운데에 가깝게 쳐 준다 (글자 수)
 _SHORT_PENALTY = 3  # 한 글자 낱말 앞뒤는 이만큼 멀게 친다
@@ -49,6 +50,8 @@ def problems(raw: str) -> list[str]:
         out.append("읽는 법 {글자|읽기} 형식 오류")
     if _BAD_PAUSE.search(rest):
         out.append("쉼 [쉼 0.5] 형식 오류")
+    elif _BRACKET.search(rest):
+        out.append("대괄호 [ ] 는 [쉼 0.5] 만 — 오타 확인")
     return out
 
 

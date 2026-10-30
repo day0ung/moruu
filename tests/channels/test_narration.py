@@ -61,3 +61,8 @@ def test_problems_bad_braces_and_pause():
 def test_split_avoids_one_char_words_like_bound_nouns():
     lines = to_lines("솔 끝을 틈에 대고 여러 번 문질러 주면 돼요.", {}, 16)
     assert [x.shown for x in lines] == ["솔 끝을 틈에 대고", "여러 번 문질러 주면 돼요."]
+
+
+def test_problems_unknown_brackets():
+    assert problems("[쉬 0.5] 다음 달") == ["대괄호 [ ] 는 [쉼 0.5] 만 — 오타 확인"]
+    assert problems("[쉼 0.5] 정상") == []
