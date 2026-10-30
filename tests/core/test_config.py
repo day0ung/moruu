@@ -41,6 +41,9 @@ def test_shorts_settings_needs_only_notion_and_tts():
     env = {k: FULL[k] for k in ("NOTION_TOKEN", "NOTION_DB_CONTENT", "NOTION_DB_METRICS", "NOTION_DB_FAILURES")}
     s = ShortsSettings.from_env({**env, "GOOGLE_TTS_API_KEY": "gk", "TTS_RATE": "1.1"})
     assert (s.tts_key, s.tts_rate, s.tts_voice) == ("gk", 1.1, "ko-KR-Neural2-A")
+    assert (s.tts_voice_male, s.lexicon_page) == ("ko-KR-Neural2-C", "")
+    s2 = ShortsSettings.from_env({**env, "GOOGLE_TTS_API_KEY": "gk", "TTS_VOICE_MALE": "m", "NOTION_PAGE_LEXICON": "lx"})
+    assert (s2.tts_voice_male, s2.lexicon_page) == ("m", "lx")
     with pytest.raises(ConfigError) as e:
         ShortsSettings.from_env(env)
     assert "GOOGLE_TTS_API_KEY" in str(e.value)

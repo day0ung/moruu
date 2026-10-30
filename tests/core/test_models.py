@@ -50,3 +50,8 @@ def test_builders_shape():
     assert S.select("POSTED") == {"select": {"name": "POSTED"}}
     assert S.rich("x") == {"rich_text": [{"text": {"content": "x"}}]}
     assert S.checkbox(True) == {"checkbox": True}
+
+
+def test_voice_defaults_empty_and_reads_select():
+    assert parse_post(sample_page()).voice == ""
+    assert parse_post(sample_page(**{"목소리": {"select": {"name": "남"}}})).voice == "남"

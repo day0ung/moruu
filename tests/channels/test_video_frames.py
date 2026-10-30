@@ -41,6 +41,21 @@ def test_long_caption_wraps_inside_frame(tmp_path):
 
 
 @needs_font
+def test_one_line_caption_shrinks_to_fit(tmp_path):
+    out = caption_png([Span("가스레인지 모서리 "), Span("기름때", True)], tmp_path / "c.png", FONT, tilt=0, one_line=True)
+    left, top, right, bottom = Image.open(out).getchannel("A").getbbox()
+    assert left > 0 and right < W
+    assert bottom - top < 130  # 한 줄 (100px 글자 두 줄이면 230px 이상)
+
+
+@needs_font
+def test_one_line_caption_too_long_wraps_at_min_size(tmp_path):
+    out = caption_png([Span("가나다 " * 12)], tmp_path / "c.png", FONT, tilt=0, one_line=True)
+    left, _, right, _ = Image.open(out).getchannel("A").getbbox()
+    assert left > 0 and right < W
+
+
+@needs_font
 def test_subtitle_has_no_yellow(tmp_path):
     out = subtitle_png("솔 끝을 틈에", tmp_path / "s.png", FONT)
     assert (*YELLOW, 255) not in colors(out)

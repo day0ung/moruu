@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from channels.tts.google import BASE, GoogleTTS, TTSError, Word, build_ssml
+from channels.tts.google import BASE, GoogleTTS, Part, TTSError, Word, build_ssml
 from channels.tts.srt import to_srt
 
 
@@ -13,8 +13,32 @@ def make(handler):
     return GoogleTTS("SECRET-KEY", http=http)
 
 
-def test_build_ssml_marks_each_word_and_escapes():
-    assert build_ssml(["A&B", "<c>"]) == '<speak><mark name="0"/>A&amp;B <mark name="1"/>&lt;c&gt;<mark name="end"/></speak>'
+def test_build_ssml_marks_each_part_and_escapes():
+    assert build_ssml([Part("A&B"), Part("<c>")]) == (
+        '<speak><mark name="0"/>A&amp;B <mark name="1"/>&lt;c&gt;<mark name="end"/></speak>')
+
+
+def test_build_ssml_pause_after_part():
+    assert build_ssml([Part("가 나", 0.5), Part("다")]) == (
+        '<speak><mark name="0"/>가 나<break time="500ms"/> <mark name="1"/>다<mark name="end"/></speak>')
+
+
+def test_synthesize_parts_times_each_part():
+    def handler(req):
+        assert "<break" in json.loads(req.content)["input"]["ssml"]
+        return httpx.Response(200, json={
+            "audioContent": base64.b64encode(b"MP3").decode(),
+            "timepoints": [{"markName": "0", "timeSeconds": 0.0}, {"markName": "1", "timeSeconds": 1.4},
+                           {"markName": "end", "timeSeconds": 2.0}],
+        })
+
+    s = make(handler).synthesize_parts([Part("가스레인지 모서리,", 0.3), Part("닦기")], "ko-KR-Neural2-A")
+    assert s.words == [Word("가스레인지 모서리,", 0.0), Word("닦기", 1.4)] and s.end == 2.0
+
+
+def test_synthesize_parts_rejects_all_empty():
+    with pytest.raises(ValueError):
+        make(lambda req: httpx.Response(200)).synthesize_parts([Part("", 1.0)], "ko-KR-Neural2-A")
 
 
 def test_synthesize_request_and_timings():
@@ -95,3 +119,18 @@ def test_cues_match_srt_timing():
     from channels.tts.srt import Cue, cues
     words = [Word("a", 0.0), Word("b", 0.4), Word("c", 0.8), Word("d", 1.25)]
     assert cues(words, end=1.9, per=3) == [Cue(0.0, 1.25, "a b c"), Cue(1.25, 1.9, "d")]
+
+
+def test_line_cues_use_first_part_of_each_line():
+    from channels.tts.narration import Line
+    from channels.tts.srt import Cue, line_cues
+    lines = [Line("가 나", (Part("가", 0.5), Part("나"))), Line("다", (Part("다"),))]
+    words = [Word("가", 0.0), Word("나", 0.9), Word("다", 1.6)]
+    assert line_cues(lines, words, 2.4) == [Cue(0.0, 1.6, "가 나"), Cue(1.6, 2.4, "다")]
+
+
+def test_line_cues_without_timings_split_by_length():
+    from channels.tts.narration import Line
+    from channels.tts.srt import Cue, line_cues
+    lines = [Line("가나다", (Part("가나다"),)), Line("라", (Part("라"),))]
+    assert line_cues(lines, [], 2.0) == [Cue(0.0, 1.5, "가나다"), Cue(1.5, 2.0, "라")]

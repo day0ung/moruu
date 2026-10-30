@@ -89,11 +89,20 @@ def _draw_lines(draw: ImageDraw.ImageDraw, lines: list[list[Span]], font: ImageF
 
 
 def caption_png(spans: list[Span], out: Path, font_path: Path, center_y: int = 300,
-                size: int = 100, tilt: float = 3.0) -> Path:
-    """큰 화면 문구 — 흰 글씨 + 검은 외곽선, 강조는 노랑, 살짝 기울임."""
+                size: int = 100, tilt: float = 3.0, one_line: bool = False, min_size: int = 60) -> Path:
+    """큰 화면 문구 — 흰 글씨 + 검은 외곽선, 강조는 노랑, 살짝 기울임.
+
+    one_line: 한 줄에 들어가게 글자를 min_size 까지 줄인다. 그래도 넘치면 min_size 로 줄바꿈.
+    """
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    max_w = W - 140
     font = ImageFont.truetype(str(font_path), size)
-    _draw_lines(ImageDraw.Draw(img), _wrap(spans, font, W - 140), font, center_y, stroke=max(6, size // 10))
+    if one_line:
+        text = "".join(x.text for x in spans).strip()
+        while size > min_size and font.getlength(text) > max_w:
+            size -= 4
+            font = ImageFont.truetype(str(font_path), max(size, min_size))
+    _draw_lines(ImageDraw.Draw(img), _wrap(spans, font, max_w), font, center_y, stroke=max(6, font.size // 10))
     if tilt:
         img = img.rotate(tilt, resample=Image.BICUBIC, center=(W / 2, center_y))
     img.save(out)

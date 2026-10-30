@@ -21,6 +21,7 @@ class Post:
     posted_at: datetime | None = None
     media_id: str | None = None
     collected: frozenset[int] = frozenset()
+    voice: str = ""
 
 
 def _plain(prop: dict) -> str:
@@ -58,4 +59,5 @@ def parse_post(page: dict) -> Post:
         posted_at=_date(get(S.POSTED_AT)),
         media_id=_plain(get(S.MEDIA_ID)) or None,
         collected=frozenset(h for h, name in S.COLLECTED.items() if get(name).get("checkbox")),
+        voice=_select(get(S.VOICE)),
     )

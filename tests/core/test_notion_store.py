@@ -136,3 +136,16 @@ def test_mark_rendered_sets_status_and_clears_error():
     props = sent[0][2]["properties"]
     assert props["status"] == {"select": {"name": "RENDERED"}}
     assert props["오류"] == {"rich_text": []}
+
+
+def test_lexicon_reads_table_rows_skipping_header():
+    def row(a, b):
+        return {"type": "table_row", "table_row": {"cells": [[{"plain_text": a}], [{"plain_text": b}]]}}
+
+    store, sent = make_store([
+        {"results": [{"type": "paragraph", "id": "b0"},
+                     {"type": "table", "id": "t1", "table": {"has_column_header": True}}], "has_more": False},
+        {"results": [row("글자", "읽기"), row(" 3M ", "쓰리엠"), row("빈칸", "")], "has_more": False},
+    ])
+    assert store.lexicon("lex-page") == {"3M": "쓰리엠"}
+    assert [s[1] for s in sent] == ["/v1/blocks/lex-page/children", "/v1/blocks/t1/children"]

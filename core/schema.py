@@ -16,6 +16,7 @@ POSTED_AT = "게시시각"
 MEDIA_ID = "게시ID"
 REPLY_ID = "댓글ID"
 ERROR = "오류"
+VOICE = "목소리"  # 영상 기본 목소리: 여 / 남 (비우면 여)
 COLLECTED = {24: "수집_24h", 72: "수집_72h", 168: "수집_7d"}
 
 CH_THREADS = "Threads"

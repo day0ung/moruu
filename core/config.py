@@ -59,8 +59,10 @@ class ShortsSettings:
     notion_db_metrics: str
     notion_db_failures: str
     tts_key: str
-    tts_voice: str = "ko-KR-Neural2-A"
+    tts_voice: str = "ko-KR-Neural2-A"  # 여
+    tts_voice_male: str = "ko-KR-Neural2-C"
     tts_rate: float = 1.0
+    lexicon_page: str = ""  # 발음 사전 Notion 페이지 ID (없으면 사전 없이)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], need_tts: bool = True) -> ShortsSettings:
@@ -76,5 +78,7 @@ class ShortsSettings:
             notion_db_failures=env["NOTION_DB_FAILURES"],
             tts_key=env.get("GOOGLE_TTS_API_KEY", ""),
             tts_voice=env.get("TTS_VOICE") or "ko-KR-Neural2-A",
+            tts_voice_male=env.get("TTS_VOICE_MALE") or "ko-KR-Neural2-C",
             tts_rate=float(env.get("TTS_RATE") or 1.0),
+            lexicon_page=env.get("NOTION_PAGE_LEXICON", ""),
         )

@@ -65,7 +65,7 @@ class NotionStore:
         return [parse_post(p) for p in pages]
 
     def page_blocks(self, page_id: str) -> list[dict]:
-        """페이지 본문 최상위 블록 (하위 블록은 읽지 않음)."""
+        """페이지(또는 블록) 바로 아래 블록 (그 아래 하위 블록은 읽지 않음)."""
         params = {"page_size": 100}
         blocks: list[dict] = []
         while True:
@@ -74,6 +74,20 @@ class NotionStore:
             if not data.get("has_more"):
                 return blocks
             params["start_cursor"] = data["next_cursor"]
+
+    def lexicon(self, page_id: str) -> dict[str, str]:
+        """발음 사전 페이지의 표 → {글자: 읽기}. 머리글 행과 빈 칸은 건너뛴다."""
+        def cell(c: list[dict]) -> str:
+            return "".join(r.get("plain_text", "") for r in c).strip()
+
+        out: dict[str, str] = {}
+        for table in (b for b in self.page_blocks(page_id) if b.get("type") == "table"):
+            rows = self.page_blocks(table["id"])
+            for row in rows[1:] if table["table"].get("has_column_header") else rows:
+                cells = row.get("table_row", {}).get("cells", [])
+                if len(cells) >= 2 and cell(cells[0]) and cell(cells[1]):
+                    out[cell(cells[0])] = cell(cells[1])
+        return out
 
     def _update(self, page_id: str, props: dict) -> None:
         self._req("PATCH", f"/v1/pages/{page_id}", {"properties": props})
