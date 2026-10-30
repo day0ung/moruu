@@ -68,3 +68,8 @@ def test_render_two_scenes_with_music_and_reuses_segments(tmp_path):
     stamp = [(tmp_path / "work" / n).stat().st_mtime_ns for n in made]
     R.render(tl, tmp_path / "work", tmp_path / "ep.mp4", FONT)
     assert [(tmp_path / "work" / n).stat().st_mtime_ns for n in made] == stamp  # 다시 안 만듦
+
+    changed = Timeline(1920, 1080, (replace(tl.scenes[0], duration=1.6), tl.scenes[1]))
+    R.render(changed, tmp_path / "work", tmp_path / "ep.mp4", FONT)
+    after = sorted(p.name for p in (tmp_path / "work").glob("scene*.mp4"))
+    assert len(after) == 2 and after[1] == made[1] and after[0] != made[0]  # 바뀐 장면의 옛 조각은 지움

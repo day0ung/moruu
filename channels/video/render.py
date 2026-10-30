@@ -60,6 +60,9 @@ def _scene(s: Scene, size: tuple[int, int], work: Path, font: Path) -> Path:
     except VideoError as e:
         raise VideoError(f"장면 {s.number}: {e}") from e
     tmp.replace(seg)  # 다 만들어진 뒤에만 캐시로 친다
+    for old in work.glob(f"{stem}_*.mp4"):  # 같은 장면의 옛 조각
+        if old != seg:
+            old.unlink()
     return seg
 
 
