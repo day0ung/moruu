@@ -137,3 +137,35 @@ class TelegramSettings:
     def from_env(cls, env: Mapping[str, str]) -> TelegramSettings | None:
         token, chat = env.get("TELEGRAM_BOT_TOKEN", ""), env.get("TELEGRAM_CHAT_ID", "")
         return cls(token, chat) if token and chat else None
+
+
+LLM_DEFAULTS = {
+    # 서비스: (주소, 키 환경변수, 역할별 기본 모델) — docs/research/free-llm-compare.md
+    "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY",
+               {"plan": "gemini-3.8-flash", "write": "gemini-3.8-flash", "review": "gemini-3.8-flash",
+                "light": "gemini-3.5-flash-lite"}),
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
+                   {r: "google/gemma-4-31b-it:free" for r in ("plan", "write", "review", "light")}),
+}
+
+
+@dataclass(frozen=True)
+class LLMSettings:
+    """대본 AI. LLM_PROVIDERS=gemini,openrouter 순서로 시도. 모델은 {서비스}_MODEL_{역할} 로 덮어쓴다."""
+    providers: list
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str]) -> LLMSettings:
+        from channels.llm.client import Provider
+
+        names = [n.strip() for n in (env.get("LLM_PROVIDERS") or "gemini,openrouter").split(",") if n.strip()]
+        providers = []
+        for name in names:
+            if name not in LLM_DEFAULTS:
+                raise ConfigError(f"모르는 AI 서비스: {name}")
+            url, key_env, models = LLM_DEFAULTS[name]
+            if not env.get(key_env):
+                continue
+            models = {role: env.get(f"{name.upper()}_MODEL_{role.upper()}") or m for role, m in models.items()}
+            providers.append(Provider(name, url, env[key_env], models))
+        return cls(providers)

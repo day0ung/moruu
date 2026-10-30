@@ -71,3 +71,16 @@ def test_drive_and_telegram_settings_all_or_none():
     assert DriveSettings.from_env({**env, "GDRIVE_ROOT_ID": ""}) is None
     assert TelegramSettings.from_env({"TELEGRAM_BOT_TOKEN": "t", "TELEGRAM_CHAT_ID": "1"}) == TelegramSettings("t", "1")
     assert TelegramSettings.from_env({"TELEGRAM_BOT_TOKEN": "t"}) is None
+
+
+def test_llm_settings_defaults_and_overrides():
+    from core.config import LLMSettings
+
+    s = LLMSettings.from_env({"GEMINI_API_KEY": "g", "OPENROUTER_API_KEY": "o", "GEMINI_MODEL_LIGHT": "lite-x"})
+    gem, orr = s.providers
+    assert (gem.name, gem.key, gem.models["write"], gem.models["light"]) == ("gemini", "g", "gemini-3.8-flash", "lite-x")
+    assert gem.base_url == "https://generativelanguage.googleapis.com/v1beta/openai"
+    assert (orr.name, orr.models["review"]) == ("openrouter", "google/gemma-4-31b-it:free")
+    only = LLMSettings.from_env({"LLM_PROVIDERS": "openrouter", "OPENROUTER_API_KEY": "o", "GEMINI_API_KEY": "g"})
+    assert [p.name for p in only.providers] == ["openrouter"]
+    assert LLMSettings.from_env({}).providers == []  # 키 없는 서비스는 뺀다
