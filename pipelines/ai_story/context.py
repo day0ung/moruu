@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 
 from pipelines.ai_story.doc import NARRATOR, plain
 
-MALE_HINTS = ("남성", "남자", "아들", "아버지", "할아버지", "남편", "형", "오빠", "삼촌", "사위", "시아버지")
+MALE_HINTS = ("남성", "남자", "사내", "총각", "영감", "장정", "아들", "아버지", "할아버지", "남편", "형", "오빠", "삼촌", "사위",
+              "시아버지")
 VOICE_FEMALE, VOICE_MALE = "ko-KR-Neural2-A", "ko-KR-Neural2-C"
 
 
