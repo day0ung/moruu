@@ -22,6 +22,7 @@ class Post:
     media_id: str | None = None
     collected: frozenset[int] = frozenset()
     voice: str = ""
+    series: str = ""  # 롱폼: 연결된 시리즈 페이지 ID
 
 
 def _plain(prop: dict) -> str:
@@ -60,4 +61,5 @@ def parse_post(page: dict) -> Post:
         media_id=_plain(get(S.MEDIA_ID)) or None,
         collected=frozenset(h for h, name in S.COLLECTED.items() if get(name).get("checkbox")),
         voice=_select(get(S.VOICE)),
+        series=next((r["id"] for r in get(S.SERIES).get("relation") or []), ""),
     )

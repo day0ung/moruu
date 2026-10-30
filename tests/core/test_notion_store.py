@@ -136,6 +136,7 @@ def test_mark_rendered_sets_status_and_clears_error():
     props = sent[0][2]["properties"]
     assert props["status"] == {"select": {"name": "RENDERED"}}
     assert props["오류"] == {"rich_text": []}
+    assert "영상 링크" not in props
 
 
 def test_lexicon_reads_table_rows_skipping_header():
@@ -149,3 +150,27 @@ def test_lexicon_reads_table_rows_skipping_header():
     ])
     assert store.lexicon("lex-page") == {"3M": "쓰리엠"}
     assert [s[1] for s in sent] == ["/v1/blocks/lex-page/children", "/v1/blocks/t1/children"]
+
+
+def test_approved_drama_filters_long_channel():
+    store, sent = make_store([{"results": [page("p1", "YT-롱폼-1")], "has_more": False}])
+    assert [p.content_id for p in store.approved_drama()] == ["YT-롱폼-1"]
+    assert {"property": "채널", "select": {"equals": "YT-롱폼"}} in sent[0][2]["filter"]["and"]
+
+
+def test_tables_reads_all_rows_with_header_flag():
+    def row(*cells):
+        return {"type": "table_row", "table_row": {"cells": [[{"plain_text": c}] for c in cells]}}
+
+    store, sent = make_store([
+        {"results": [{"type": "table", "id": "t1", "table": {"has_column_header": True}}], "has_more": False},
+        {"results": [row("인물", "목소리"), row(" 아들 ", "ko-KR-Neural2-C")], "has_more": False},
+    ])
+    [t] = store.tables("series-1")
+    assert t.header and t.rows == [["인물", "목소리"], ["아들", "ko-KR-Neural2-C"]]
+
+
+def test_mark_rendered_with_link():
+    store, sent = make_store([{}])
+    store.mark_rendered(post(), "https://drive/x")
+    assert sent[0][2]["properties"]["영상 링크"] == {"url": "https://drive/x"}

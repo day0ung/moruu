@@ -82,3 +82,31 @@ class ShortsSettings:
             tts_rate=float(env.get("TTS_RATE") or 1.0),
             lexicon_page=env.get("NOTION_PAGE_LEXICON", ""),
         )
+
+
+@dataclass(frozen=True)
+class DramaSettings:
+    """드라마 렌더용 — 목소리는 시리즈 바이블에서, 여기엔 Notion + TTS 키만."""
+    notion_token: str
+    notion_db_content: str
+    notion_db_metrics: str
+    notion_db_failures: str
+    tts_key: str
+    tts_rate: float = 1.0  # 바이블 빠르기가 비었을 때
+    lexicon_page: str = ""
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str], need_tts: bool = True) -> DramaSettings:
+        required = SHORTS_REQUIRED + (("GOOGLE_TTS_API_KEY",) if need_tts else ())
+        missing = [k for k in required if not env.get(k)]
+        if missing:
+            raise ConfigError("환경변수 없음: " + ", ".join(missing))
+        return cls(
+            notion_token=env["NOTION_TOKEN"],
+            notion_db_content=env["NOTION_DB_CONTENT"],
+            notion_db_metrics=env["NOTION_DB_METRICS"],
+            notion_db_failures=env["NOTION_DB_FAILURES"],
+            tts_key=env.get("GOOGLE_TTS_API_KEY", ""),
+            tts_rate=float(env.get("TTS_RATE") or 1.0),
+            lexicon_page=env.get("NOTION_PAGE_LEXICON", ""),
+        )

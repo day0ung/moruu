@@ -20,6 +20,12 @@ class DbIds:
     failures: str
 
 
+@dataclass(frozen=True)
+class Table:
+    rows: list[list[str]]  # 칸 글자 (앞뒤 공백 제거), 머리글 행 포함
+    header: bool  # 첫 행이 머리글
+
+
 class NotionStore:
     def __init__(self, token: str, dbs: DbIds, http: httpx.Client | None = None):
         self._dbs = dbs
@@ -56,13 +62,19 @@ class NotionStore:
     def posted_threads_since(self, since: datetime) -> list[Post]:
         return self._threads(S.POSTED, S.POSTED_AT, "on_or_after", since)
 
-    def approved_shorts(self) -> list[Post]:
+    def _approved(self, channel: str) -> list[Post]:
         filter_ = {"and": [
             {"property": S.STATUS, "select": {"equals": S.APPROVED}},
-            {"property": S.CHANNEL, "select": {"equals": S.CH_YT_SHOP}},
+            {"property": S.CHANNEL, "select": {"equals": channel}},
         ]}
         pages = self._query(self._dbs.content, filter_, [{"timestamp": "created_time", "direction": "ascending"}])
         return [parse_post(p) for p in pages]
+
+    def approved_shorts(self) -> list[Post]:
+        return self._approved(S.CH_YT_SHOP)
+
+    def approved_drama(self) -> list[Post]:
+        return self._approved(S.CH_YT_LONG)
 
     def page_blocks(self, page_id: str) -> list[dict]:
         """페이지(또는 블록) 바로 아래 블록 (그 아래 하위 블록은 읽지 않음)."""
@@ -75,18 +87,24 @@ class NotionStore:
                 return blocks
             params["start_cursor"] = data["next_cursor"]
 
-    def lexicon(self, page_id: str) -> dict[str, str]:
-        """발음 사전 페이지의 표 → {글자: 읽기}. 머리글 행과 빈 칸은 건너뛴다."""
+    def tables(self, page_id: str) -> list[Table]:
+        """페이지의 표 블록들 → 칸 글자."""
         def cell(c: list[dict]) -> str:
             return "".join(r.get("plain_text", "") for r in c).strip()
 
+        return [
+            Table([[cell(c) for c in row.get("table_row", {}).get("cells", [])] for row in self.page_blocks(t["id"])],
+                  bool(t["table"].get("has_column_header")))
+            for t in self.page_blocks(page_id) if t.get("type") == "table"
+        ]
+
+    def lexicon(self, page_id: str) -> dict[str, str]:
+        """발음 사전 페이지의 표 → {글자: 읽기}. 머리글 행과 빈 칸은 건너뛴다."""
         out: dict[str, str] = {}
-        for table in (b for b in self.page_blocks(page_id) if b.get("type") == "table"):
-            rows = self.page_blocks(table["id"])
-            for row in rows[1:] if table["table"].get("has_column_header") else rows:
-                cells = row.get("table_row", {}).get("cells", [])
-                if len(cells) >= 2 and cell(cells[0]) and cell(cells[1]):
-                    out[cell(cells[0])] = cell(cells[1])
+        for t in self.tables(page_id):
+            for cells in t.rows[1:] if t.header else t.rows:
+                if len(cells) >= 2 and cells[0] and cells[1]:
+                    out[cells[0]] = cells[1]
         return out
 
     def _update(self, page_id: str, props: dict) -> None:
@@ -110,8 +128,11 @@ class NotionStore:
     def mark_failed(self, post: Post, error: str) -> None:
         self._update(post.page_id, {S.STATUS: S.select(S.FAILED), S.ERROR: S.rich(error)})
 
-    def mark_rendered(self, post: Post) -> None:
-        self._update(post.page_id, {S.STATUS: S.select(S.RENDERED), S.ERROR: {"rich_text": []}})
+    def mark_rendered(self, post: Post, link: str | None = None) -> None:
+        props = {S.STATUS: S.select(S.RENDERED), S.ERROR: {"rich_text": []}}
+        if link:
+            props[S.VIDEO_LINK] = S.url(link)
+        self._update(post.page_id, props)
 
     def mark_collected(self, post: Post, hours: list[int]) -> None:
         self._update(post.page_id, {S.COLLECTED[h]: S.checkbox(True) for h in hours})

@@ -48,3 +48,16 @@ def test_shorts_settings_needs_only_notion_and_tts():
         ShortsSettings.from_env(env)
     assert "GOOGLE_TTS_API_KEY" in str(e.value)
     assert ShortsSettings.from_env(env, need_tts=False).tts_key == ""
+
+
+def test_drama_settings_from_env():
+    from core.config import DramaSettings
+
+    env = {"NOTION_TOKEN": "t", "NOTION_DB_CONTENT": "c", "NOTION_DB_METRICS": "m", "NOTION_DB_FAILURES": "f",
+           "GOOGLE_TTS_API_KEY": "k", "TTS_RATE": "1.1", "NOTION_PAGE_LEXICON": "lex"}
+    s = DramaSettings.from_env(env)
+    assert (s.tts_key, s.tts_rate, s.lexicon_page) == ("k", 1.1, "lex")
+    no_key = {k: v for k, v in env.items() if k != "GOOGLE_TTS_API_KEY"}
+    assert DramaSettings.from_env(no_key, need_tts=False).tts_key == ""
+    with pytest.raises(ConfigError):
+        DramaSettings.from_env(no_key)

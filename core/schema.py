@@ -17,10 +17,13 @@ MEDIA_ID = "게시ID"
 REPLY_ID = "댓글ID"
 ERROR = "오류"
 VOICE = "목소리"  # 영상 기본 목소리: 여 / 남 (비우면 여)
+SERIES = "시리즈"  # 롱폼: 시리즈 DB 연결
+VIDEO_LINK = "영상 링크"  # 렌더 결과 주소
 COLLECTED = {24: "수집_24h", 72: "수집_72h", 168: "수집_7d"}
 
 CH_THREADS = "Threads"
 CH_YT_SHOP = "YT-쇼핑"
+CH_YT_LONG = "YT-롱폼"
 APPROVED = "APPROVED"
 POSTING = "POSTING"
 POSTED = "POSTED"
@@ -72,3 +75,7 @@ def number(value: float) -> dict:
 
 def checkbox(value: bool) -> dict:
     return {"checkbox": value}
+
+
+def url(value: str) -> dict:
+    return {"url": value}

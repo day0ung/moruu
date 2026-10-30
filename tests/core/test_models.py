@@ -55,3 +55,9 @@ def test_builders_shape():
 def test_voice_defaults_empty_and_reads_select():
     assert parse_post(sample_page()).voice == ""
     assert parse_post(sample_page(**{"목소리": {"select": {"name": "남"}}})).voice == "남"
+
+
+def test_series_relation_first_id():
+    page = sample_page(**{"시리즈": {"relation": [{"id": "series-1"}, {"id": "series-2"}]}})
+    assert parse_post(page).series == "series-1"
+    assert parse_post(sample_page()).series == ""
