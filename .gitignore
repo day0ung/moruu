@@ -9,3 +9,5 @@ assets/raw/
 out/
 assets/shorts/
 assets/longform/
+assets/music/
+.cache/
