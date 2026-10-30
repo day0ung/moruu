@@ -57,7 +57,9 @@ def line_cues(lines: list[Line], words: list[Word], end: float) -> list[Cue]:
     return [Cue(a, b, x.shown) for a, b, x in zip(starts, stops, lines)]
 
 
+def cues_to_srt(cues: list[Cue]) -> str:
+    return "\n".join(f"{n + 1}\n{_ts(c.start)} --> {_ts(c.stop)}\n{c.text}\n" for n, c in enumerate(cues))
+
+
 def to_srt(words: list[Word], end: float | None, per: int = 3) -> str:
-    return "\n".join(
-        f"{n + 1}\n{_ts(c.start)} --> {_ts(c.stop)}\n{c.text}\n" for n, c in enumerate(cues(words, end, per))
-    )
+    return cues_to_srt(cues(words, end, per))
