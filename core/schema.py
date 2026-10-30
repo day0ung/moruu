@@ -16,6 +16,7 @@ POSTED_AT = "게시시각"
 MEDIA_ID = "게시ID"
 REPLY_ID = "댓글ID"
 ERROR = "오류"
+MEMO = "메모"
 VOICE = "목소리"  # 영상 기본 목소리: 여 / 남 (비우면 여)
 SERIES = "시리즈"  # 롱폼: 시리즈 DB 연결
 VIDEO_LINK = "영상 링크"  # 렌더 결과 주소
