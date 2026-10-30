@@ -1,0 +1,75 @@
+name: render
+
+# 수동 실행만 (예약 없음 — private 저장소 무료 시간 절약). Actions → render → Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "렌더 / 폴더(쇼츠·롱폼 글마다 Drive 자료 폴더 만들기)"
+        default: 렌더
+        type: choice
+        options: [렌더, 폴더]
+      target:
+        description: "전체 / 쇼츠 / 롱폼"
+        default: 전체
+        type: choice
+        options: [전체, 쇼츠, 롱폼]
+      content_id:
+        description: "비우면 APPROVED 전부"
+        default: ""
+        type: string
+
+concurrency:
+  group: render
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DB_CONTENT: ${{ secrets.NOTION_DB_CONTENT }}
+      NOTION_DB_METRICS: ${{ secrets.NOTION_DB_METRICS }}
+      NOTION_DB_FAILURES: ${{ secrets.NOTION_DB_FAILURES }}
+      NOTION_PAGE_LEXICON: ${{ secrets.NOTION_PAGE_LEXICON }}
+      GOOGLE_TTS_API_KEY: ${{ secrets.GOOGLE_TTS_API_KEY }}
+      TTS_RATE: ${{ secrets.TTS_RATE }}
+      TTS_VOICE: ${{ secrets.TTS_VOICE }}
+      TTS_VOICE_MALE: ${{ secrets.TTS_VOICE_MALE }}
+      GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+      GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+      GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+      GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      INPUT_TASK: ${{ inputs.task }}
+      INPUT_TARGET: ${{ inputs.target }}
+      INPUT_ID: ${{ inputs.content_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: 한글 글꼴
+        run: sudo apt-get update -q && sudo apt-get install -y -q fonts-noto-cjk
+      - run: uv sync --frozen
+      - name: TTS 캐시
+        uses: actions/cache@v4
+        with:
+          path: .cache/tts
+          key: tts-${{ github.run_id }}
+          restore-keys: tts-
+      - name: 폴더
+        if: env.INPUT_TASK == '폴더'
+        run: uv run python -m pipelines.media_folders
+      - name: 렌더
+        if: env.INPUT_TASK == '렌더'
+        run: |
+          ARGS="--from-drive"
+          if [ -n "$INPUT_ID" ]; then ARGS="$ARGS --content-id $INPUT_ID"; fi
+          FAIL=0
+          if [ "$INPUT_TARGET" != "롱폼" ]; then uv run python -m pipelines.shopping_shorts $ARGS || FAIL=1; fi
+          if [ "$INPUT_TARGET" != "쇼츠" ]; then uv run python -m pipelines.ai_drama $ARGS || FAIL=1; fi
+          exit $FAIL

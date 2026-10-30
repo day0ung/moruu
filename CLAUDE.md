@@ -19,6 +19,8 @@
 - 게시/수집 시험: `uv run python -m pipelines.threads_post --dry-run`
 - 쇼츠 렌더: `uv run python -m pipelines.shopping_shorts [--dry-run] [--content-id ID]` → `out/shorts/{content_id}.mp4` (대본 형식: docs/notion-schema.md)
 - 드라마 렌더: `uv run python -m pipelines.ai_drama [--dry-run] [--content-id ID]` → `out/drama/{content_id}.mp4` + `.srt` + `.timeline.json` (대본·시리즈 바이블 형식: docs/notion-schema.md, TTS 캐시 `.cache/tts`)
+- 클라우드 렌더: GitHub Actions `render` 수동 실행 (할 일 렌더/폴더, 대상, content_id). 쇼츠·드라마 `--from-drive` = Drive `moruu/{쇼츠|롱폼}/{content_id}/` 자료를 받아 렌더 → 같은 폴더에 결과 업로드 → 텔레그램 알림 (`--no-upload` 로 업로드 끔)
+- 자료 폴더 만들기: `uv run python -m pipelines.media_folders` (Notion `자료 폴더` 채움) · Drive 토큰: `uv run python -m channels.gdrive.get_token [--check]` · 텔레그램: `uv run python -m channels.telegram [--chat-id | "시험"]` (준비: docs/TODO-manual.md 6-4)
 - Threads 토큰 최초 발급/재발급: threads-auth-page 에서 코드 복사 → `uv run python -m channels.threads.get_token`
 - Notion 속성 이름은 core/schema.py 와 docs/notion-schema.md 를 같이 고친다.
 
