@@ -61,3 +61,9 @@ def test_series_relation_first_id():
     page = sample_page(**{"시리즈": {"relation": [{"id": "series-1"}, {"id": "series-2"}]}})
     assert parse_post(page).series == "series-1"
     assert parse_post(sample_page()).series == ""
+
+
+def test_channel_and_media_folder():
+    p = parse_post(sample_page(**{"채널": {"select": {"name": "YT-롱폼"}}, "자료 폴더": {"url": "https://d/f"}}))
+    assert (p.channel, p.media_folder) == ("YT-롱폼", "https://d/f")
+    assert parse_post(sample_page(**{"자료 폴더": {"url": None}})).media_folder == ""

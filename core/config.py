@@ -110,3 +110,30 @@ class DramaSettings:
             tts_rate=float(env.get("TTS_RATE") or 1.0),
             lexicon_page=env.get("NOTION_PAGE_LEXICON", ""),
         )
+
+
+@dataclass(frozen=True)
+class DriveSettings:
+    """Drive 자료·결과 (넷 다 있어야 켜짐)."""
+    client_id: str
+    client_secret: str
+    refresh_token: str
+    root_id: str
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str]) -> DriveSettings | None:
+        keys = ("GDRIVE_CLIENT_ID", "GDRIVE_CLIENT_SECRET", "GDRIVE_REFRESH_TOKEN", "GDRIVE_ROOT_ID")
+        values = [env.get(k, "") for k in keys]
+        return cls(*values) if all(values) else None
+
+
+@dataclass(frozen=True)
+class TelegramSettings:
+    """텔레그램 알림 (둘 다 있어야 켜짐)."""
+    token: str
+    chat_id: str
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str]) -> TelegramSettings | None:
+        token, chat = env.get("TELEGRAM_BOT_TOKEN", ""), env.get("TELEGRAM_CHAT_ID", "")
+        return cls(token, chat) if token and chat else None

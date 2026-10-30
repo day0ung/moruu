@@ -76,6 +76,19 @@ class NotionStore:
     def approved_drama(self) -> list[Post]:
         return self._approved(S.CH_YT_LONG)
 
+    def missing_media_folders(self) -> list[Post]:
+        """영상 글(쇼츠·롱폼) 중 DRAFT·APPROVED 인데 자료 폴더가 없는 것."""
+        def any_of(prop: str, values: list[str]) -> dict:
+            return {"or": [{"property": prop, "select": {"equals": v}} for v in values]}
+
+        filter_ = {"and": [
+            any_of(S.CHANNEL, [S.CH_YT_SHOP, S.CH_YT_LONG]),
+            any_of(S.STATUS, [S.DRAFT, S.APPROVED]),
+            {"property": S.MEDIA_FOLDER, "url": {"is_empty": True}},
+        ]}
+        pages = self._query(self._dbs.content, filter_, [{"timestamp": "created_time", "direction": "ascending"}])
+        return [parse_post(p) for p in pages]
+
     def page_blocks(self, page_id: str) -> list[dict]:
         """페이지(또는 블록) 바로 아래 블록 (그 아래 하위 블록은 읽지 않음)."""
         params = {"page_size": 100}
@@ -133,6 +146,9 @@ class NotionStore:
         if link:
             props[S.VIDEO_LINK] = S.url(link)
         self._update(post.page_id, props)
+
+    def set_media_folder(self, post: Post, url: str) -> None:
+        self._update(post.page_id, {S.MEDIA_FOLDER: S.url(url)})
 
     def mark_collected(self, post: Post, hours: list[int]) -> None:
         self._update(post.page_id, {S.COLLECTED[h]: S.checkbox(True) for h in hours})

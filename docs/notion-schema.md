@@ -29,6 +29,7 @@
 | 목소리 | select | 여, 남 — 쇼츠 기본 목소리 (비우면 여) |
 | 시리즈 | relation | → 📚 시리즈 DB. YT-롱폼 필수 (인물·목소리를 여기서 읽음) |
 | 영상 링크 | url | 자동 (렌더 결과 주소, 업로드할 때) |
+| 자료 폴더 | url | Drive 자료 폴더 (YT-쇼핑·YT-롱폼). `pipelines.media_folders` 가 채움 — 그림·`출처.txt` 를 여기에 올림 |
 | 메모 | rich_text | 사람용, 코드 미사용 |
 | 게시시각 | date | 자동 |
 | 게시ID | rich_text | 자동 |

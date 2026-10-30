@@ -23,6 +23,8 @@ class Post:
     collected: frozenset[int] = frozenset()
     voice: str = ""
     series: str = ""  # 롱폼: 연결된 시리즈 페이지 ID
+    channel: str = ""
+    media_folder: str = ""  # Drive 자료 폴더 주소
 
 
 def _plain(prop: dict) -> str:
@@ -62,4 +64,6 @@ def parse_post(page: dict) -> Post:
         collected=frozenset(h for h, name in S.COLLECTED.items() if get(name).get("checkbox")),
         voice=_select(get(S.VOICE)),
         series=next((r["id"] for r in get(S.SERIES).get("relation") or []), ""),
+        channel=_select(get(S.CHANNEL)),
+        media_folder=get(S.MEDIA_FOLDER).get("url") or "",
     )

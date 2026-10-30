@@ -61,3 +61,13 @@ def test_drama_settings_from_env():
     assert DramaSettings.from_env(no_key, need_tts=False).tts_key == ""
     with pytest.raises(ConfigError):
         DramaSettings.from_env(no_key)
+
+
+def test_drive_and_telegram_settings_all_or_none():
+    from core.config import DriveSettings, TelegramSettings
+
+    env = {"GDRIVE_CLIENT_ID": "a", "GDRIVE_CLIENT_SECRET": "b", "GDRIVE_REFRESH_TOKEN": "c", "GDRIVE_ROOT_ID": "d"}
+    assert DriveSettings.from_env(env) == DriveSettings("a", "b", "c", "d")
+    assert DriveSettings.from_env({**env, "GDRIVE_ROOT_ID": ""}) is None
+    assert TelegramSettings.from_env({"TELEGRAM_BOT_TOKEN": "t", "TELEGRAM_CHAT_ID": "1"}) == TelegramSettings("t", "1")
+    assert TelegramSettings.from_env({"TELEGRAM_BOT_TOKEN": "t"}) is None

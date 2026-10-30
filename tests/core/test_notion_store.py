@@ -174,3 +174,20 @@ def test_mark_rendered_with_link():
     store, sent = make_store([{}])
     store.mark_rendered(post(), "https://drive/x")
     assert sent[0][2]["properties"]["영상 링크"] == {"url": "https://drive/x"}
+
+
+def test_missing_media_folders_filter():
+    store, sent = make_store([{"results": [page("p1", "YT-1")], "has_more": False}])
+    assert [p.content_id for p in store.missing_media_folders()] == ["YT-1"]
+    conds = sent[0][2]["filter"]["and"]
+    assert {"or": [{"property": "채널", "select": {"equals": "YT-쇼핑"}},
+                   {"property": "채널", "select": {"equals": "YT-롱폼"}}]} in conds
+    assert {"or": [{"property": "status", "select": {"equals": "DRAFT"}},
+                   {"property": "status", "select": {"equals": "APPROVED"}}]} in conds
+    assert {"property": "자료 폴더", "url": {"is_empty": True}} in conds
+
+
+def test_set_media_folder():
+    store, sent = make_store([{}])
+    store.set_media_folder(post(), "https://drive/f")
+    assert sent[0][2]["properties"] == {"자료 폴더": {"url": "https://drive/f"}}
