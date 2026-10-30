@@ -212,6 +212,13 @@ def test_approved_plans_filter():
     assert {"property": "채널", "select": {"equals": "YT-롱폼"}} in conds
 
 
+def test_find_content():
+    store, sent = make_store([{"results": [page("p1", "YT-롱폼-1")], "has_more": False}, {"results": [], "has_more": False}])
+    assert store.find_content("YT-롱폼-1").page_id == "p1"
+    assert sent[0][2]["filter"] == {"property": "content_id", "title": {"equals": "YT-롱폼-1"}}
+    assert store.find_content("없음") is None
+
+
 def test_find_series_by_title():
     store, sent = make_series_store([{"results": [{"id": "s1"}], "has_more": False}])
     assert store.find_series("시험 시리즈") == "s1"

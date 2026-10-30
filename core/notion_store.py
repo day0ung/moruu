@@ -87,6 +87,10 @@ class NotionStore:
         pages = self._query(self._dbs.content, filter_, [{"timestamp": "created_time", "direction": "ascending"}])
         return [parse_post(p) for p in pages]
 
+    def find_content(self, content_id: str) -> Post | None:
+        pages = self._query(self._dbs.content, {"property": S.TITLE_ID, "title": {"equals": content_id}}, [])
+        return parse_post(pages[0]) if pages else None
+
     def find_series(self, name: str) -> str | None:
         pages = self._query(self._dbs.series, {"property": S.SERIES_TITLE, "title": {"equals": name}}, [])
         return pages[0]["id"] if pages else None

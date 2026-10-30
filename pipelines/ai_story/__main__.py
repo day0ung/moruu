@@ -22,20 +22,23 @@ from dotenv import load_dotenv
 from channels.llm.client import LLM, LLMError, LLMQuotaError
 from channels.telegram.client import Telegram
 from core import schema as S
-from core.config import ConfigError, DramaSettings, LLMSettings, TelegramSettings
+from channels.gdrive.client import folder_url
+from channels.gdrive.cloud import Cloud
+from core.config import ConfigError, DramaSettings, DriveSettings, LLMSettings, TelegramSettings
 from core.log import setup_logging
 from core.models import KST, Post
 from core.notion_store import DbIds, NotionStore
-from pipelines.ai_story import agents
+from pipelines.ai_story import agents, export
 from pipelines.ai_story.agents import Chapter
 from pipelines.ai_story.checks import CHARS_PER_MIN, chapter_target, spoken_chars
 from pipelines.ai_story.context import load_series
 from pipelines.ai_story.doc import (bullet, chapter_blocks, chapter_toggles, image_list_block, info_blocks,
-                                    is_image_line, plain, plan_blocks, read_plan, rt, scenes_text, table, written)
+                                    is_image_line, plain, plan_blocks, read_plan, rt, scenes_text, split_speaker, table,
+                                    written)
 
 ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "out" / "story"
 MUSIC_TAGS = ["잔잔", "슬픔", "긴장", "따뜻함"]
-_SPEAKER = re.compile(r"^[^\s:()]{1,8}(\([^)]*\))?:\s*")
 _PAGE_ID = re.compile(r"^[0-9a-f]{32}$|^[0-9a-f-]{36}$")
 
 
@@ -120,7 +123,7 @@ def _chapter_chars(blocks: list[dict]) -> dict[int, int]:
             m = re.match(r"^챕터\s*(\d+)", plain(b).strip())
             current = int(m[1]) if m else None
         elif current and b.get("type") == "paragraph":
-            spoken = "".join(_SPEAKER.sub("", line) for line in plain(b).split("\n"))  # 화자 이름은 안 읽힘
+            spoken = "".join(split_speaker(line)[1] for line in plain(b).split("\n"))  # 화자 이름은 안 읽힘
             out[current] = out.get(current, 0) + len(re.sub(r"\s", "", spoken))
     return out
 
@@ -161,8 +164,8 @@ def write_one(store, llm, post: Post, log: logging.Logger, minutes: int, music: 
         planned = plan_text.minutes[idx] if idx < len(plan_text.minutes) else 0
         goal = round(planned * CHARS_PER_MIN) if planned else target
         scenes, note = agents.write_reviewed(llm, series, plan_text, ch, previous, goal, music)
-        for s, image in zip(scenes, agents.image_prompts(llm, series, scenes)):
-            s["image_prompt"] = image
+        for s, (ko, en) in zip(scenes, agents.image_prompts(llm, series, scenes)):
+            s["image_prompt"], s["image_prompt_en"] = ko, en
         store.append_blocks(post.page_id, chapter_blocks(ch.number, title, scenes, next_scene,
                                                          f"{note} · {spoken_chars(scenes)}자"))
         next_scene += len(scenes)
@@ -176,8 +179,23 @@ def write_one(store, llm, post: Post, log: logging.Logger, minutes: int, music: 
     return total - done, len(re.sub(r"\s", "", script))
 
 
+def export_episode(store, llm, post: Post, log: logging.Logger, out: Path = OUT, uploader=None) -> str:
+    """Kling 작업 파일을 out/{content_id}/ 에. uploader(content_id, paths) → 링크 가 있으면 Drive 에 올리고 Notion 에 링크."""
+    sheet = export.build_sheet(store, llm, post.content_id, post.page_id)
+    paths = export.write_files(sheet, out / post.content_id)
+    where = str(paths[0])
+    if uploader:
+        where = uploader(post.content_id, paths)
+        info = export.info_callout_id(store.page_blocks(post.page_id))
+        if info:
+            store.append_blocks(info, [export.link_bullet("📥 Kling 작업지 (Drive)", where)])
+    log.info("%s Kling 작업지: %s (장면 %d · 인물 %d)", post.content_id, where, len(sheet.scenes), len(sheet.characters))
+    return where
+
+
 def run_write(store, llm, log: logging.Logger, notify: Callable[[str], object], content_id: str | None = None,
-              minutes: int = 30, music: list[str] = MUSIC_TAGS) -> int:
+              minutes: int = 30, music: list[str] = MUSIC_TAGS,
+              after_write: Callable[[Post], object] | None = None) -> int:
     posts = [p for p in store.approved_plans() if not content_id or p.content_id == content_id]
     if not posts:
         log.info("대본을 쓸 글 없음 (채널=YT-롱폼, status=기획승인)")
@@ -202,8 +220,14 @@ def run_write(store, llm, log: logging.Logger, notify: Callable[[str], object], 
             store.mark_failed(post, f"story: {e}")
             notify(f"❌ {post.content_id} 대본 실패 · {str(e)[:300]}")
             continue
+        sheet = ""
+        if after_write:
+            try:
+                sheet = f" · Kling 작업지 {after_write(post)}"
+            except (LLMError, ValueError, OSError, httpx.HTTPError) as e:
+                log.warning("%s 작업지 실패 (대본은 완료): %s", post.content_id, e)
         notify(f"✍️ {post.content_id} 대본 DRAFT · 챕터 {new}개 새로 씀 · 약 {chars:,}자 ≈ {chars / CHARS_PER_MIN:.0f}분"
-               " → Notion 에서 검토 후 APPROVED")
+               f"{sheet} → Notion 에서 검토 후 APPROVED")
     return 1 if failed else 0
 
 
@@ -215,6 +239,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--topic", default="", help="소재 한 줄 (비우면 자유)")
     w = sub.add_parser("write", help="기획승인 글의 대본")
     w.add_argument("--content-id", help="이 content_id 만")
+    x = sub.add_parser("export", help="Kling 작업 파일 (작업지.md · prompts.csv · 출처.txt)")
+    x.add_argument("--content-id", required=True)
     args = ap.parse_args(argv)
 
     load_dotenv(ROOT / ".env")
@@ -241,8 +267,22 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "plan":
         return run_plan(store, llm, args.series, args.topic, log, notify, datetime.now(KST), minutes=minutes,
                         compare_parent=os.environ.get("NOTION_PAGE_LONGFORM", ""))
+    drive_cfg = DriveSettings.from_env(os.environ)
+    cloud = Cloud(drive_cfg, "롱폼") if drive_cfg else None
+    uploader = (lambda cid, paths: folder_url(cloud.folder(cid)) if cloud.upload(cid, paths) else "") if cloud else None
+
+    def after_write(post: Post) -> str:
+        return export_episode(store, llm, post, log, uploader=uploader)
+
+    if args.cmd == "export":
+        post = store.find_content(args.content_id)
+        if not post:
+            print(f"content_id 없음: {args.content_id}", file=sys.stderr)
+            return 1
+        print(after_write(post))
+        return 0
     music = [t.strip() for t in (os.environ.get("STORY_MUSIC_TAGS") or ",".join(MUSIC_TAGS)).split(",") if t.strip()]
-    return run_write(store, llm, log, notify, args.content_id, minutes, music)
+    return run_write(store, llm, log, notify, args.content_id, minutes, music, after_write=after_write)
 
 
 if __name__ == "__main__":

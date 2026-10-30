@@ -1,6 +1,7 @@
 from pipelines.ai_drama.script import parse_episode
-from pipelines.ai_story.doc import (CHAPTER_TOGGLE, chapter_blocks, chapter_toggles, info_blocks, is_image_line,
-                                    line_text, plain, plan_blocks, read_plan, written)
+from pipelines.ai_story.doc import (CHAPTER_TOGGLE, chapter_blocks, chapter_toggles, image_line, info_blocks,
+                                    is_image_line, line_text, parse_image_line, plain, plan_blocks, read_plan,
+                                    split_speaker, written)
 
 PLAN = {
     "titles": ["제목1", "제목2"], "thumbnail": "썸네일", "logline": "로그라인", "hook": "궁금증", "opening": "옛날 옛적에",
@@ -72,6 +73,14 @@ def test_chapter_blocks_render_format_and_images_folded():
     assert folded == ["챕터 2: PASS", "05.png — 주막 마당"] and is_image_line(folded[1])
     parsed, problems = parse_episode([as_read(b, str(i)) for i, b in enumerate(blocks)], {"내레이션", "사또"})
     assert problems == [] and [s.title for s in parsed] == ["장면 5 · 주막", "장면 6 · 관아"]
+
+
+def test_image_line_roundtrip_and_split_speaker():
+    assert parse_image_line(image_line(7, "주막 마당", "an inn yard")) == (7, "주막 마당", "an inn yard")
+    assert parse_image_line(image_line(12, "고개")) == (12, "고개", "")
+    assert parse_image_line("메모") is None
+    assert split_speaker("사또(노하여): 네 이놈") == ("사또", "네 이놈")
+    assert split_speaker("그날 밤, 바람이 불었다.") == (None, "그날 밤, 바람이 불었다.")
 
 
 def test_written_and_chapter_toggles():

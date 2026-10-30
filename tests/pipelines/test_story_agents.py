@@ -66,10 +66,17 @@ def test_plan_filters_and_limits():
     assert "상속" in llm.calls[0][1] and "아들" in llm.calls[0][1]
 
 
-def test_image_prompts_pads_to_scene_count():
-    llm = FakeLLM([{"prompts": ["하나"]}])
-    assert agents.image_prompts(llm, SERIES, scenes()["scenes"]) == ["하나", "", ""]
+def test_image_prompts_korean_english_pairs():
+    llm = FakeLLM([{"prompts": [{"ko": "주막", "en": "an inn"}, "옛 형식"]}])
+    assert agents.image_prompts(llm, SERIES, scenes()["scenes"]) == [("주막", "an inn"), ("옛 형식", ""), ("", "")]
     assert llm.calls[0][0] == "light"
+
+
+def test_translate_and_character_sheets_pad():
+    assert agents.translate_prompts(FakeLLM([{"prompts": ["inn"]}]), ["주막", "고개"]) == ["inn", ""]
+    llm = FakeLLM([{"prompts": ["old salt merchant"]}])
+    assert agents.character_sheets(llm, [("소금장수", "60대 남성")]) == ["old salt merchant"]
+    assert "소금장수: 60대 남성" in llm.calls[0][1]
 
 
 def test_summarize():

@@ -60,11 +60,30 @@ def review_chapter(llm, series: Series, plan_text: PlanText, ch: Chapter, previo
     return str(data.get("verdict", "")).upper().startswith("PASS"), notes
 
 
-def image_prompts(llm, series: Series, scenes: list[dict]) -> list[str]:
+def image_prompts(llm, series: Series, scenes: list[dict]) -> list[tuple[str, str]]:
+    """장면마다 (한국어 설명, Kling 용 영어 프롬프트)."""
     listing = "\n\n".join(f"{i}. {s.get('title', '')}\n" + scenes_text([s]) for i, s in enumerate(scenes, 1))
     data = llm.chat_json(prompt("image", cast=series.cast_text(), scenes=listing, count=len(scenes)), "light")
-    prompts = [str(p) for p in _list(data.get("prompts") if isinstance(data, dict) else data)]
-    return (prompts + [""] * len(scenes))[:len(scenes)]
+    out = []
+    for p in _list(data.get("prompts") if isinstance(data, dict) else data):
+        out.append((str(p.get("ko", "")), str(p.get("en", ""))) if isinstance(p, dict) else (str(p), ""))
+    return (out + [("", "")] * len(scenes))[:len(scenes)]
+
+
+def translate_prompts(llm, korean: list[str]) -> list[str]:
+    """영어 프롬프트가 없는 옛 대본용 — 한국어 그림 설명 → 영어."""
+    listing = "\n".join(f"{i}. {k}" for i, k in enumerate(korean, 1))
+    data = llm.chat_json(prompt("translate", items=listing, count=len(korean)), "light")
+    out = [str(x) for x in _list(data.get("prompts") if isinstance(data, dict) else data)]
+    return (out + [""] * len(korean))[:len(korean)]
+
+
+def character_sheets(llm, characters: list[tuple[str, str]]) -> list[str]:
+    """인물 기준 이미지 영어 프롬프트 (같은 얼굴을 장면마다 참고 이미지로 쓰려고)."""
+    listing = "\n".join(f"{i}. {n}: {d}" for i, (n, d) in enumerate(characters, 1))
+    data = llm.chat_json(prompt("character", items=listing, count=len(characters)), "light")
+    out = [str(x) for x in _list(data.get("prompts") if isinstance(data, dict) else data)]
+    return (out + [""] * len(characters))[:len(characters)]
 
 
 def summarize(llm, plan_text: PlanText, script: str) -> str:

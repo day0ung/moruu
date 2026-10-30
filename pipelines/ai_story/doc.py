@@ -19,7 +19,8 @@ CHAPTER_TOGGLE = "🔍 검수·그림"
 IMAGE_TOGGLE = "🖼 그림 목록"
 _CHUNK = 1800  # Notion rich_text 한 덩어리 2000자 제한보다 작게
 _CHAPTER = re.compile(r"^챕터\s*(\d+)\s*[·.:\-]?\s*(.*?)\s*(?:\(약\s*[\d.]+\s*분\))?$")
-_IMAGE_LINE = re.compile(r"^\d{2,}\.png — ")
+_IMAGE_LINE = re.compile(r"^(\d{2,})\.png — (.*?)(?:\nEN: (.*))?$", re.S)
+_SPEAKER = re.compile(r"^([^\s:()]{1,8})(?:\([^)]*\))?:\s*")
 TABLE_HEAD = ["챕터", "분", "핵심 사건", "감정", "복선·회수"]
 
 
@@ -180,13 +181,26 @@ def scenes_text(scenes: list[dict]) -> str:
     return "\n".join(out)
 
 
-def image_line(number: int, prompt: str) -> str:
-    return f"{number:02}.png — {prompt}"
+def image_line(number: int, prompt: str, english: str = "") -> str:
+    """그림 목록 한 줄: `07.png — 한국어 설명` (+ 줄바꿈 `EN: Kling 용 영어 프롬프트`)."""
+    return f"{number:02}.png — {prompt}" + (f"\nEN: {english}" if english else "")
+
+
+def parse_image_line(text: str) -> tuple[int, str, str] | None:
+    m = _IMAGE_LINE.match(text.strip())
+    return (int(m[1]), m[2].strip(), (m[3] or "").strip()) if m else None
+
+
+def split_speaker(line: str) -> tuple[str | None, str]:
+    """대사 문단 한 줄 → (화자 또는 None=내레이션, 읽히는 글자)."""
+    m = _SPEAKER.match(line)
+    return (m[1], line[m.end():]) if m else (None, line)
 
 
 def chapter_blocks(number: int, title: str, scenes: list[dict], first_scene: int, note: str = "") -> list[dict]:
     """# 챕터 → ▸ 검수·그림(접힘) → 장면들. 그림 프롬프트는 본문이 아니라 접힌 토글에."""
-    images = [bullet(image_line(k, s["image_prompt"])) for k, s in enumerate(scenes, first_scene) if s.get("image_prompt")]
+    images = [bullet(image_line(k, s["image_prompt"], s.get("image_prompt_en", "")))
+              for k, s in enumerate(scenes, first_scene) if s.get("image_prompt")]
     blocks = [h1(f"챕터 {number} · {title}"), toggle(CHAPTER_TOGGLE, ([bullet(note)] if note else []) + images)]
     for k, s in enumerate(scenes, first_scene):
         music = (s.get("music") or "").strip()

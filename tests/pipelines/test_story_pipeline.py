@@ -93,7 +93,7 @@ class FakeLLM:
         if role == "write":
             return chapter_reply(1032 if "챕터 1 /" in messages[-1]["content"] else 903)  # 4분·3.5분
         return {"plan": {"plans": [PLAN, PLAN, PLAN]}, "review": {"verdict": "PASS"},
-                "light": {"prompts": ["그림"] * 3, "summary": "갈등: 부채"}}[role]
+                "light": {"prompts": [{"ko": "그림", "en": "picture"}] * 3, "summary": "갈등: 부채"}}[role]
 
 
 def types(store, pid="page-1"):
@@ -138,10 +138,23 @@ def test_write_full_episode_layout():
     assert [plain(b) for b in info] == ["00:00  챕터 1 · 주막", "04:00  챕터 2 · 관아"]
     assert kinds.count("heading_1") == 2 and kinds.count("heading_2") == 6 and kinds[-1] == "toggle"  # 그림 목록이 맨 끝
     images = [plain(b) for b in store.blocks[store.blocks["page-1"][-1]["id"]]]
-    assert images[0] == "01.png — 그림" and images[-1] == "06.png — 그림"
+    assert images[0] == "01.png — 그림\nEN: picture" and images[-1] == "06.png — 그림\nEN: picture"
     assert store.rows == [["사또", "ko-KR-Neural2-C", "50대 남성 (변화: 깨달음)"]]  # 새 인물 → 바이블
     assert store.written == [("YT-롱폼-1", "갈등: 부채")]
     assert sent[0].startswith("✍️ YT-롱폼-1 대본 DRAFT · 챕터 2개 새로 씀")
+
+
+def test_after_write_hook_and_its_failure_does_not_fail_the_script():
+    store, sent, seen = Store(), [], []
+    assert run_write(store, FakeLLM(), LOG, sent.append, after_write=lambda p: seen.append(p.content_id) or "drive/x") == 0
+    assert seen == ["YT-롱폼-1"] and "Kling 작업지 drive/x" in sent[0]
+
+    def boom(post):
+        raise ValueError("no")
+
+    store, sent = Store(), []
+    assert run_write(store, FakeLLM(), LOG, sent.append, after_write=boom) == 0
+    assert store.written and "Kling" not in sent[0]
 
 
 def test_quota_pauses_and_next_run_resumes():
