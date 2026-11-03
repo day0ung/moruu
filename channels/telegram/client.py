@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import httpx
 
 BASE = "https://api.telegram.org"
+VIDEO_MAX_BYTES = 50 * 1024 * 1024  # 봇 API 파일 올리기 한도
 log = logging.getLogger("moruu")
 
 
@@ -14,9 +16,13 @@ class Telegram:
         self._http = http or httpx.Client(base_url=BASE, timeout=20)
         self._token, self.chat_id = token, chat_id
 
-    def _call(self, method: str, body: dict | None = None) -> dict | None:
+    def _call(self, method: str, body: dict | None = None, files: dict | None = None,
+              timeout: float | None = None) -> dict | None:
+        kw = {"data": body, "files": files} if files else {"json": body or {}}
+        if timeout:
+            kw["timeout"] = timeout
         try:
-            r = self._http.post(f"/bot{self._token}/{method}", json=body or {})
+            r = self._http.post(f"/bot{self._token}/{method}", **kw)
         except httpx.HTTPError as e:
             log.warning("텔레그램 %s 실패: %s", method, type(e).__name__)
             return None
@@ -33,6 +39,15 @@ class Telegram:
         """실패해도 예외를 내지 않는다 — 알림 때문에 렌더 결과가 바뀌면 안 됨."""
         body = {"chat_id": self.chat_id, "text": text, "disable_web_page_preview": True}
         return self._call("sendMessage", body) is not None
+
+    def send_video(self, path: Path, caption: str) -> bool:
+        """mp4 를 대화방에 올린다. 50MB 넘거나 실패하면 False (예외 없음)."""
+        if path.stat().st_size > VIDEO_MAX_BYTES:
+            log.warning("텔레그램 영상 생략: %s 가 50MB 를 넘음", path.name)
+            return False
+        body = {"chat_id": self.chat_id, "caption": caption[:1024], "supports_streaming": "true"}
+        with path.open("rb") as f:
+            return self._call("sendVideo", body, files={"video": (path.name, f, "video/mp4")}, timeout=300) is not None
 
     def latest_chat_id(self) -> str | None:
         data = self._call("getUpdates")

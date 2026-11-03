@@ -5,6 +5,7 @@ Notion 콘텐츠 DB 의 채널=YT-쇼핑, status=APPROVED 페이지 → out/shor
 --dry-run: 본문 파싱·검사 결과만 출력 (Notion 은 읽기만, TTS 키 불필요).
 --from-drive: 렌더 전에 Drive moruu/쇼츠/{content_id}/ 를 assets/shorts/{content_id}/ 로 받는다 (GDRIVE_* 필요).
 Drive 설정이 있으면 결과 mp4 를 같은 Drive 폴더에 올리고(--no-upload 면 안 함), 텔레그램 설정이 있으면 알린다.
+텔레그램: 성공하면 mp4 를 대화방에 보낸다 (50MB 넘거나 실패하면 글 알림만).
 """
 from __future__ import annotations
 
@@ -41,8 +42,10 @@ RENDER_ERRORS = (TTSError, VideoError, FontError, httpx.HTTPError, OSError, Valu
 def run(store, make_video: Callable[[Post, list[Cut]], Path], log: logging.Logger,
         dry_run: bool = False, content_id: str | None = None, assets: Path = ASSETS, *,
         fetch_media: Callable[[Post], object] | None = None, uploader: Callable[[Post, Path], str] | None = None,
-        notifier: Callable[[str], object] | None = None) -> int:
-    """fetch_media(post): 검사 전에 자료 받기. uploader(post, mp4) → 링크. notifier(글): 결과 알림 (없으면 로그)."""
+        notifier: Callable[[str], object] | None = None,
+        video_sender: Callable[[Path, str], bool] | None = None) -> int:
+    """fetch_media(post): 검사 전에 자료 받기. uploader(post, mp4) → 링크. notifier(글): 결과 알림 (없으면 로그).
+    video_sender(mp4, 글): 성공 알림을 영상과 함께 보냄 → 실패(False)면 글 알림으로."""
     notify = notifier or (lambda text: log.info("알림: %s", text))
     posts = [p for p in store.approved_shorts() if not content_id or p.content_id == content_id]
     if not posts:
@@ -96,7 +99,9 @@ def run(store, make_video: Callable[[Post, list[Cut]], Path], log: logging.Logge
             continue
         store.mark_rendered(post, link)
         log.info("%s 완료: %s", post.content_id, path)
-        notify(f"✅ {post.content_id} 렌더 완료 · {link or path}")
+        done = f"✅ {post.content_id} 렌더 완료 · {link or path}"
+        if not (video_sender and video_sender(path, done)):
+            notify(done)
     return 1 if failed else 0
 
 
@@ -141,9 +146,10 @@ def main(argv: list[str] | None = None) -> int:
 
     fetch_media = (lambda post: cloud.fetch(post.content_id, ASSETS / post.content_id)) if args.from_drive else None
     uploader = (lambda post, path: cloud.upload(post.content_id, [path]))         if cloud and not args.no_upload and not args.dry_run else None
-    notifier = Telegram(tg.token, tg.chat_id).send if tg and not args.dry_run else None
+    bot = Telegram(tg.token, tg.chat_id) if tg and not args.dry_run else None
     return run(store, make_video, log, dry_run=args.dry_run, content_id=args.content_id,
-               fetch_media=fetch_media, uploader=uploader, notifier=notifier)
+               fetch_media=fetch_media, uploader=uploader, notifier=bot.send if bot else None,
+               video_sender=bot.send_video if bot else None)
 
 
 if __name__ == "__main__":

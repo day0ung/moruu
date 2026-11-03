@@ -173,3 +173,19 @@ def test_seconds_tag_shorter_than_speech_is_error(tmp_path):
 def parse_cuts_for(blocks):
     from pipelines.shopping_shorts.script import parse_cuts
     return parse_cuts(blocks)
+
+
+def test_video_sender_gets_mp4_instead_of_text(tmp_path):
+    sent, videos = [], []
+    store = Store([POST], BLOCKS)
+    send = lambda path, caption: videos.append((path, caption)) or True
+    assert run(store, lambda p, s: Path("x.mp4"), LOG, assets=tmp_path, notifier=sent.append, video_sender=send) == 0
+    assert videos == [(Path("x.mp4"), "✅ YT-틈새솔-1 렌더 완료 · x.mp4")] and sent == []
+
+
+def test_video_sender_failure_falls_back_to_text(tmp_path):
+    sent = []
+    store = Store([POST], BLOCKS)
+    assert run(store, lambda p, s: Path("x.mp4"), LOG, assets=tmp_path, notifier=sent.append,
+               video_sender=lambda path, caption: False) == 0
+    assert store.rendered == ["YT-틈새솔-1"] and sent == ["✅ YT-틈새솔-1 렌더 완료 · x.mp4"]

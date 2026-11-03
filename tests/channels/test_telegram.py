@@ -45,3 +45,37 @@ def test_latest_chat_id():
     updates = {"ok": True, "result": [{"message": {"chat": {"id": 1}}}, {"message": {"chat": {"id": 2}}}]}
     assert make(lambda req: httpx.Response(200, json=updates)).latest_chat_id() == "2"
     assert make(lambda req: httpx.Response(200, json={"ok": True, "result": []})).latest_chat_id() is None
+
+
+def test_send_video_uploads_file(tmp_path):
+    mp4 = tmp_path / "a.mp4"
+    mp4.write_bytes(b"VIDEO")
+    seen = []
+
+    def handler(req):
+        seen.append((req.url.path, req.headers["content-type"], req.content))
+        return httpx.Response(200, json={"ok": True})
+
+    assert make(handler).send_video(mp4, "✅ 완료") is True
+    path, ctype, body = seen[0]
+    assert path == f"/bot{TOKEN}/sendVideo" and ctype.startswith("multipart/form-data")
+    assert b"VIDEO" in body and "✅ 완료".encode() in body and b'name="chat_id"' in body
+
+
+def test_send_video_too_big_skips_request(tmp_path, caplog, monkeypatch):
+    caplog.set_level(logging.WARNING)
+    mp4 = tmp_path / "a.mp4"
+    mp4.write_bytes(b"12345")
+    monkeypatch.setattr("channels.telegram.client.VIDEO_MAX_BYTES", 4)
+    called = []
+    assert make(lambda req: called.append(req) or httpx.Response(200, json={"ok": True})).send_video(mp4, "가") is False
+    assert called == [] and "50MB" in caplog.text
+
+
+def test_send_video_failure_returns_false_without_token(tmp_path, caplog):
+    caplog.set_level(logging.WARNING)
+    mp4 = tmp_path / "a.mp4"
+    mp4.write_bytes(b"V")
+    tg = make(lambda req: httpx.Response(400, json={"ok": False, "description": "bad"}))
+    assert tg.send_video(mp4, "가") is False
+    assert TOKEN not in caplog.text
