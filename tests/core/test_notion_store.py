@@ -257,3 +257,12 @@ def test_mark_written_sets_draft_and_summary():
     props = sent[0][2]["properties"]
     assert props["status"] == {"select": {"name": "DRAFT"}}
     assert props["회차 요약"] == {"rich_text": [{"text": {"content": "갈등: …"}}]}
+
+
+def test_page_image_urls_reads_file_and_external_images():
+    store, _ = make_store([{"results": [
+        {"type": "image", "image": {"type": "file", "file": {"url": "https://s3/a.png"}}},
+        {"type": "paragraph", "paragraph": {}},
+        {"type": "image", "image": {"type": "external", "external": {"url": "https://ex/b.png"}}},
+    ], "has_more": False}])
+    assert store.page_image_urls("page-1") == ["https://s3/a.png", "https://ex/b.png"]

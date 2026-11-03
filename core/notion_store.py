@@ -160,6 +160,17 @@ class NotionStore:
                 return blocks
             params["start_cursor"] = data["next_cursor"]
 
+    def page_image_urls(self, page_id: str) -> list[str]:
+        """본문 이미지 블록 주소 (올린 파일은 1시간쯤 가는 임시 주소 — 게시 직전에 읽을 것)."""
+        urls = []
+        for b in self.page_blocks(page_id):
+            if b.get("type") == "image":
+                img = b.get("image", {})
+                url = img.get(img.get("type", ""), {}).get("url")
+                if url:
+                    urls.append(url)
+        return urls
+
     def tables(self, page_id: str) -> list[Table]:
         """페이지의 표 블록들 → 칸 글자."""
         def cell(c: list[dict]) -> str:

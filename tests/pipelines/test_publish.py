@@ -155,3 +155,18 @@ def test_same_content_id_posted_10_days_ago_is_held():
     store, client = FakeStore(due=[make_post()], recent=[old]), FakeClient()
     assert run(store, client) == []
     assert client.calls == [] and store.failed == []
+
+
+def test_post_with_images_uses_post_images_then_link_reply():
+    urls = ["https://s3/1.png", "https://s3/2.png"]
+    store, client = FakeStore(due=[make_post(**LINK)], images={"page-1": urls}), FakeClient()
+    assert run(store, client) == ["TH-LIVING-20261101-001"]
+    assert client.calls[0] == ("좁은 집 수납 팁", "images", urls)
+    assert client.calls[1] == (LINK["link"] + "\n\n" + LINK["disclosure"], "m1")
+
+
+def test_too_many_images_fails_without_posting():
+    urls = [f"https://s3/{i}.png" for i in range(21)]
+    store, client = FakeStore(due=[make_post()], images={"page-1": urls}), FakeClient()
+    assert run(store, client) == []
+    assert client.calls == [] and "이미지 20장 초과" in store.failed[0][1]

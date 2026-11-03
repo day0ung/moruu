@@ -1,4 +1,4 @@
-"""APPROVED + 예약시각 지난 Threads 글 게시 → 첫 댓글에 링크+대가성 문구."""
+"""APPROVED + 예약시각 지난 Threads 글 게시 (본문 이미지가 있으면 이미지·캐러셀 글) → 첫 댓글에 링크+대가성 문구."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import httpx
 
-from channels.threads.client import TOKEN_EXPIRED, ThreadsError
+from channels.threads.client import MAX_IMAGES, TOKEN_EXPIRED, ThreadsError
 from core.models import Post
 from core.safety import blocking_problems, hold_reasons
 
@@ -55,7 +55,14 @@ def run_publish(store, client, daily_cap: int, now: datetime, log: logging.Logge
 
     for post in due:
         cid = post.content_id
+        try:
+            images = store.page_image_urls(post.page_id)
+        except httpx.HTTPError as e:
+            log.warning("%s 본문 이미지 읽기 실패 — 다음 실행으로 보류: %s", cid, type(e).__name__)
+            continue
         problems = blocking_problems(post)
+        if len(images) > MAX_IMAGES:
+            problems.append(f"이미지 {MAX_IMAGES}장 초과 ({len(images)}장)")
         if problems:
             if dry_run:
                 log.warning("[dry-run] %s 게시 불가: %s", cid, ", ".join(problems))
@@ -71,12 +78,13 @@ def run_publish(store, client, daily_cap: int, now: datetime, log: logging.Logge
             log.warning("Threads 게시 한도 소진 — 이번 실행 중단")
             break
         if dry_run:
-            log.info("[dry-run] 게시 예정: %s", cid)
+            log.info("[dry-run] 게시 예정: %s%s", cid, f" (이미지 {len(images)}장)" if images else "")
             continue
 
         store.mark_posting(post)
         try:
-            media_id = _with_retry(lambda: client.post_text(post.text), sleep)
+            media_id = _with_retry(
+                lambda: client.post_images(post.text, images) if images else client.post_text(post.text), sleep)
         except ThreadsError as e:
             if e.code == TOKEN_EXPIRED:
                 # 190 이면 게시되지 않았으므로 APPROVED 로 되돌려 다음 실행에서 다시 시도할 수 있게 한다.

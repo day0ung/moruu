@@ -21,8 +21,9 @@ def make_post(**overrides) -> Post:
 
 
 class FakeStore:
-    def __init__(self, due=(), recent=(), fail_mark_posted=False):
+    def __init__(self, due=(), recent=(), fail_mark_posted=False, images=None):
         self.due = list(due)
+        self.images = images or {}
         self.recent = list(recent)
         self.fail_mark_posted = fail_mark_posted
         self.posting = []
@@ -34,6 +35,9 @@ class FakeStore:
 
     def posted_threads_since(self, since):
         return [p for p in self.recent if p.posted_at and p.posted_at >= since]
+
+    def page_image_urls(self, page_id):
+        return list(self.images.get(page_id, []))
 
     def mark_posting(self, post):
         self.posting.append(post.content_id)
@@ -73,6 +77,14 @@ class FakeClient:
 
     def post_text(self, text, reply_to=None):
         self.calls.append((text, reply_to))
+        if self._fail > 0:
+            self._fail -= 1
+            raise ThreadsError(self._code, "boom")
+        self._n += 1
+        return f"m{self._n}"
+
+    def post_images(self, text, urls):
+        self.calls.append((text, "images", list(urls)))
         if self._fail > 0:
             self._fail -= 1
             raise ThreadsError(self._code, "boom")
