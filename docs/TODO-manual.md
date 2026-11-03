@@ -120,11 +120,23 @@ done
 - [ ] (구현 후) 확인: `uv run python -m channels.gdrive.get_token --check` → `ok: moruu 폴더 접근됨`
 
 **B. 텔레그램 알림 봇**
-- [ ] 텔레그램 앱 → **@BotFather** 검색 → `/newbot` → 표시 이름(예: `moruu 알림`) → 사용자명(`..._bot` 으로 끝나야 함)
+- [x] 텔레그램 앱 → **@BotFather** 검색 → `/newbot` → 표시 이름(예: `moruu 알림`) → 사용자명(`..._bot` 으로 끝나야 함)
   → 받은 토큰을 `.env` 에 `TELEGRAM_BOT_TOKEN=` 직접 입력
-- [ ] 만든 봇 대화방을 열고 아무 메시지(예: `안녕`) 보내기 — 봇은 먼저 말을 걸 수 없어서 필요
-- [ ] (구현 후) `uv run python -m channels.telegram --chat-id` → 방금 보낸 대화방 ID 를 `.env` 에 `TELEGRAM_CHAT_ID=` 로 저장
-- [ ] (구현 후) 확인: `uv run python -m channels.telegram "시험 알림"` → 휴대폰에 알림 옴
+- [x] 만든 봇 대화방을 열고 아무 메시지(예: `안녕`) 보내기 — 봇은 먼저 말을 걸 수 없어서 필요
+- [x] `uv run python -m channels.telegram --chat-id` → 방금 보낸 대화방 ID 를 `.env` 에 `TELEGRAM_CHAT_ID=` 로 저장
+- [x] 확인: `uv run python -m channels.telegram "시험 알림"` → 휴대폰에 알림 옴 (2026-11-03, 영상 전송도 확인)
+- [ ] 토큰이 채팅에 노출됨 → @BotFather `/revoke` 로 재발급 → `.env` 직접 입력 (채팅 ID 는 그대로)
+
+**B-2. Drive 없이 쇼츠만 클라우드 렌더 (지금 쓰는 방식)**
+> Drive Secrets 가 없으면 `render` 는 `--from-drive` 없이 쇼츠만 렌더하고 롱폼은 건너뛴다. 그림은 Notion 페이지 이미지 블록(캡션 = 출처)으로.
+- [ ] Secrets: `NOTION_TOKEN` `NOTION_DB_CONTENT` `NOTION_DB_METRICS` `NOTION_DB_FAILURES` `GOOGLE_TTS_API_KEY` `NOTION_PAGE_LEXICON` `TELEGRAM_BOT_TOKEN` `TELEGRAM_CHAT_ID`
+```bash
+for k in NOTION_TOKEN NOTION_DB_CONTENT NOTION_DB_METRICS NOTION_DB_FAILURES GOOGLE_TTS_API_KEY NOTION_PAGE_LEXICON TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
+  grep "^$k=" .env | cut -d= -f2- | tr -d '' | gh secret set "$k"
+done
+```
+- [ ] 폰 흐름: Notion 쇼츠 페이지 작성(컷마다 이미지 + 대가성문구) → status **APPROVED** → GitHub 앱 Actions → `render` → Run workflow (할 일 `렌더`, 대상 `쇼츠`, content_id) → 텔레그램으로 mp4 → YouTube 비공개 업로드 → 공개
+- [ ] 첫 실행 걸린 시간: ____분 / 영상 ____초
 
 **C. GitHub 에 올리기**
 - [ ] 로컬 `main` push (`render` 워크플로는 기본 브랜치에 있어야 `Run workflow` 버튼이 보임)

@@ -67,9 +67,14 @@ jobs:
       - name: 렌더
         if: env.INPUT_TASK == '렌더'
         run: |
-          ARGS="--from-drive"
+          # Drive Secrets 가 없으면 쇼츠는 Notion 이미지만으로 렌더, 롱폼은 그림을 받을 곳이 없어 건너뜀
+          ARGS=""
+          if [ -n "$GDRIVE_REFRESH_TOKEN" ]; then ARGS="--from-drive"; fi
           if [ -n "$INPUT_ID" ]; then ARGS="$ARGS --content-id $INPUT_ID"; fi
           FAIL=0
           if [ "$INPUT_TARGET" != "롱폼" ]; then uv run python -m pipelines.shopping_shorts $ARGS || FAIL=1; fi
-          if [ "$INPUT_TARGET" != "쇼츠" ]; then uv run python -m pipelines.ai_drama $ARGS || FAIL=1; fi
+          if [ "$INPUT_TARGET" != "쇼츠" ]; then
+            if [ -z "$GDRIVE_REFRESH_TOKEN" ]; then echo "::warning::Drive Secrets 없음 — 롱폼 렌더 건너뜀"
+            else uv run python -m pipelines.ai_drama $ARGS || FAIL=1; fi
+          fi
           exit $FAIL
